@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17.0
+    container_name: xuangong_postgres
+    environment:
+      POSTGRES_USER: xuangong
+      POSTGRES_PASSWORD: xuangong
+      POSTGRES_DB: xuangong_db
+    ports:
+      - "5432:5432"
+#    volumes:
+#      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xuangong"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  adminer:
+    image: adminer:latest
+    container_name: xuangong_adminer
+    ports:
+      - "8081:8080"
+    depends_on:
+      - postgres
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: xuangong_api
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://xuangong:xuangong@postgres:5432/xuangong_db?sslmode=disable
+      JWT_SECRET: dev-secret-key-not-for-production-use-only
+      ENV: development
+    volumes:
+      - ./uploads:/root/uploads
+    restart: unless-stopped
+
+#volumes:
+#  postgres_data:

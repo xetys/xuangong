@@ -1,0 +1,5 @@
+.idea/
+.claude/
+app/build
+
+*.iml
