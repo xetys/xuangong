@@ -42,6 +42,9 @@ services:
       DATABASE_URL: postgres://xuangong:xuangong@postgres:5432/xuangong_db?sslmode=disable
       JWT_SECRET: dev-secret-key-not-for-production-use-only
       ENV: development
+      ALLOWED_ORIGINS: "*"
+      ALLOWED_METHODS: "GET,POST,PUT,DELETE,OPTIONS"
+      ALLOWED_HEADERS: "Content-Type,Authorization"
     volumes:
       - ./uploads:/root/uploads
     restart: unless-stopped

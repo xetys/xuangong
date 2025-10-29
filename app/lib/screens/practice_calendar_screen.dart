@@ -1,5 +1,61 @@
 import 'package:flutter/material.dart';
-import '../widgets/practice_history_widget.dart';
+
+// Practice status enum
+enum PracticeStatus { completed, partial, skipped }
+
+// Practice day model (used by practice history widget)
+class PracticeDay {
+  final String dayName;
+  final String date;
+  final PracticeStatus status;
+  final List<String> sessionNames;
+  final int durationMinutes;
+  final int exercisesCompleted;
+  final int totalExercises;
+
+  PracticeDay({
+    required this.dayName,
+    required this.date,
+    required this.status,
+    this.sessionNames = const [],
+    this.durationMinutes = 0,
+    this.exercisesCompleted = 0,
+    this.totalExercises = 0,
+  });
+}
+
+// Mock practice data
+final List<PracticeDay> mockPracticeData = [
+  PracticeDay(
+    dayName: 'Today',
+    date: '27',
+    status: PracticeStatus.completed,
+    sessionNames: ['Morning Qi Gong', 'Tai Chi Form'],
+    durationMinutes: 30,
+  ),
+  PracticeDay(
+    dayName: 'Sat',
+    date: '26',
+    status: PracticeStatus.completed,
+    sessionNames: ['Morning Qi Gong', 'Ba Gua Circle Walk', 'Tai Chi Form'],
+    durationMinutes: 28,
+  ),
+  PracticeDay(
+    dayName: 'Fri',
+    date: '25',
+    status: PracticeStatus.partial,
+    sessionNames: ['Morning Qi Gong'],
+    exercisesCompleted: 3,
+    totalExercises: 5,
+  ),
+  PracticeDay(
+    dayName: 'Thu',
+    date: '24',
+    status: PracticeStatus.completed,
+    sessionNames: ['Morning Qi Gong', 'Tai Chi Form', 'Ba Gua Walk', 'Xing Yi Practice'],
+    durationMinutes: 32,
+  ),
+];
 
 // Individual practice session model
 class PracticeSession {

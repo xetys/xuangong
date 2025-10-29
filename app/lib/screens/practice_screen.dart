@@ -26,6 +26,19 @@ class _PracticeScreenState extends State<PracticeScreen> {
   @override
   void initState() {
     super.initState();
+    // Check if program has exercises
+    if (widget.program.exercises.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This program has no exercises'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        Navigator.pop(context);
+      });
+      return;
+    }
     _startCountdown();
   }
 
@@ -139,6 +152,17 @@ class _PracticeScreenState extends State<PracticeScreen> {
   @override
   Widget build(BuildContext context) {
     const burgundy = Color(0xFF9B1C1C);
+
+    // Guard against empty exercises list
+    if (widget.program.exercises.isEmpty) {
+      return Scaffold(
+        backgroundColor: burgundy,
+        body: const Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
+
     final exercise = widget.program.exercises[currentExerciseIndex];
     final progress = (currentExerciseIndex + 1) / widget.program.exercises.length;
 

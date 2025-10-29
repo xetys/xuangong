@@ -125,7 +125,24 @@ func (h *ProgramHandler) CreateProgram(c *gin.Context) {
 		Metadata:    req.Metadata,
 	}
 
-	if err := h.programService.Create(c.Request.Context(), program, userID); err != nil {
+	// Convert ExerciseRequest to Exercise models
+	exercises := make([]models.Exercise, len(req.Exercises))
+	for i, exReq := range req.Exercises {
+		exercises[i] = models.Exercise{
+			Name:                exReq.Name,
+			Description:         exReq.Description,
+			OrderIndex:          exReq.OrderIndex,
+			ExerciseType:        models.ExerciseType(exReq.ExerciseType),
+			DurationSeconds:     exReq.DurationSeconds,
+			Repetitions:         exReq.Repetitions,
+			RestAfterSeconds:    exReq.RestAfterSeconds,
+			HasSides:            exReq.HasSides,
+			SideDurationSeconds: exReq.SideDurationSeconds,
+			Metadata:            exReq.Metadata,
+		}
+	}
+
+	if err := h.programService.Create(c.Request.Context(), program, exercises, userID); err != nil{
 		respondWithAppError(c, err)
 		return
 	}
@@ -147,6 +164,13 @@ func (h *ProgramHandler) UpdateProgram(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		respondWithError(c, appErrors.NewBadRequestError("Invalid program ID"))
+		return
+	}
+
+	// Get user ID for authorization check
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		respondWithAppError(c, err)
 		return
 	}
 
@@ -182,7 +206,29 @@ func (h *ProgramHandler) UpdateProgram(c *gin.Context) {
 		program.Metadata = req.Metadata
 	}
 
-	if err := h.programService.Update(c.Request.Context(), id, program); err != nil {
+	// Convert ExerciseRequest to Exercise models
+	exercises := make([]models.Exercise, len(req.Exercises))
+	for i, exReq := range req.Exercises {
+		var exerciseID uuid.UUID
+		if exReq.ID != "" {
+			exerciseID, _ = uuid.Parse(exReq.ID)
+		}
+		exercises[i] = models.Exercise{
+			ID:                  exerciseID,
+			Name:                exReq.Name,
+			Description:         exReq.Description,
+			OrderIndex:          exReq.OrderIndex,
+			ExerciseType:        models.ExerciseType(exReq.ExerciseType),
+			DurationSeconds:     exReq.DurationSeconds,
+			Repetitions:         exReq.Repetitions,
+			RestAfterSeconds:    exReq.RestAfterSeconds,
+			HasSides:            exReq.HasSides,
+			SideDurationSeconds: exReq.SideDurationSeconds,
+			Metadata:            exReq.Metadata,
+		}
+	}
+
+	if err := h.programService.Update(c.Request.Context(), id, program, exercises, userID); err != nil {
 		respondWithAppError(c, err)
 		return
 	}

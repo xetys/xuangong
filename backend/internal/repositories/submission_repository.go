@@ -83,7 +83,7 @@ func (r *SubmissionRepository) List(ctx context.Context, userID *uuid.UUID, stat
 	}
 	defer rows.Close()
 
-	var submissions []models.VideoSubmission
+	submissions := make([]models.VideoSubmission, 0)
 	for rows.Next() {
 		var submission models.VideoSubmission
 		err := rows.Scan(
@@ -147,7 +147,7 @@ func (r *SubmissionRepository) GetFeedback(ctx context.Context, submissionID uui
 	}
 	defer rows.Close()
 
-	var feedbacks []models.Feedback
+	feedbacks := make([]models.Feedback, 0)
 	for rows.Next() {
 		var feedback models.Feedback
 		err := rows.Scan(

@@ -28,6 +28,7 @@ type CreateProgramRequest struct {
 	IsPublic    bool                   `json:"is_public"`
 	Tags        []string               `json:"tags"`
 	Metadata    map[string]interface{} `json:"metadata"`
+	Exercises   []ExerciseRequest      `json:"exercises" validate:"dive"`
 }
 
 type UpdateProgramRequest struct {
@@ -37,6 +38,22 @@ type UpdateProgramRequest struct {
 	IsPublic    *bool                  `json:"is_public"`
 	Tags        []string               `json:"tags"`
 	Metadata    map[string]interface{} `json:"metadata"`
+	Exercises   []ExerciseRequest      `json:"exercises" validate:"dive"`
+}
+
+// ExerciseRequest is used for exercises within program requests
+type ExerciseRequest struct {
+	ID                  string                 `json:"id" validate:"omitempty,uuid"`
+	Name                string                 `json:"name" validate:"required,min=3,max=255"`
+	Description         string                 `json:"description"`
+	OrderIndex          int                    `json:"order_index" validate:"gte=0"`
+	ExerciseType        string                 `json:"exercise_type" validate:"required,oneof=timed repetition combined"`
+	DurationSeconds     *int                   `json:"duration_seconds" validate:"omitempty,min=1"`
+	Repetitions         *int                   `json:"repetitions" validate:"omitempty,min=1"`
+	RestAfterSeconds    int                    `json:"rest_after_seconds" validate:"gte=0"`
+	HasSides            bool                   `json:"has_sides"`
+	SideDurationSeconds *int                   `json:"side_duration_seconds" validate:"omitempty,min=1"`
+	Metadata            map[string]interface{} `json:"metadata"`
 }
 
 type AssignProgramRequest struct {
@@ -48,11 +65,11 @@ type CreateExerciseRequest struct {
 	ProgramID           string                 `json:"program_id" validate:"required,uuid"`
 	Name                string                 `json:"name" validate:"required,min=3,max=255"`
 	Description         string                 `json:"description"`
-	OrderIndex          int                    `json:"order_index" validate:"required,min=0"`
+	OrderIndex          int                    `json:"order_index" validate:"gte=0"`
 	ExerciseType        string                 `json:"exercise_type" validate:"required,oneof=timed repetition combined"`
 	DurationSeconds     *int                   `json:"duration_seconds" validate:"omitempty,min=1"`
 	Repetitions         *int                   `json:"repetitions" validate:"omitempty,min=1"`
-	RestAfterSeconds    int                    `json:"rest_after_seconds" validate:"min=0"`
+	RestAfterSeconds    int                    `json:"rest_after_seconds" validate:"gte=0"`
 	HasSides            bool                   `json:"has_sides"`
 	SideDurationSeconds *int                   `json:"side_duration_seconds" validate:"omitempty,min=1"`
 	Metadata            map[string]interface{} `json:"metadata"`

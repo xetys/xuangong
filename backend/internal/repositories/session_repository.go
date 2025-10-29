@@ -77,7 +77,7 @@ func (r *SessionRepository) List(ctx context.Context, userID uuid.UUID, programI
 	}
 	defer rows.Close()
 
-	var sessions []models.PracticeSession
+	sessions := make([]models.PracticeSession, 0)
 	for rows.Next() {
 		var session models.PracticeSession
 		err := rows.Scan(
@@ -149,7 +149,7 @@ func (r *SessionRepository) GetExerciseLogs(ctx context.Context, sessionID uuid.
 	}
 	defer rows.Close()
 
-	var logs []models.ExerciseLog
+	logs := make([]models.ExerciseLog, 0)
 	for rows.Next() {
 		var log models.ExerciseLog
 		err := rows.Scan(

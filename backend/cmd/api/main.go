@@ -49,16 +49,18 @@ func main() {
 	authService := services.NewAuthService(userRepo, cfg)
 	programService := services.NewProgramService(programRepo, exerciseRepo)
 	sessionService := services.NewSessionService(sessionRepo)
-	exerciseService := services.NewExerciseService(exerciseRepo, programRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	programHandler := handlers.NewProgramHandler(programService)
 	sessionHandler := handlers.NewSessionHandler(sessionService)
-	exerciseHandler := handlers.NewExerciseHandler(exerciseService)
 
 	// Setup router
-	router := setupRouter(cfg, authService, authHandler, programHandler, sessionHandler, exerciseHandler)
+	router := setupRouter(cfg, authService, authHandler, programHandler, sessionHandler)
+
+	// Suppress unused variable warnings
+	_ = exerciseRepo
+	_ = submissionRepo
 
 	// Create server
 	srv := &http.Server{
@@ -93,9 +95,6 @@ func main() {
 	}
 
 	log.Println("Server exited")
-
-	// Suppress unused variable warnings for now
-	_ = submissionRepo
 }
 
 func setupRouter(
@@ -104,7 +103,6 @@ func setupRouter(
 	authHandler *handlers.AuthHandler,
 	programHandler *handlers.ProgramHandler,
 	sessionHandler *handlers.SessionHandler,
-	exerciseHandler *handlers.ExerciseHandler,
 ) *gin.Engine {
 	// Set gin mode
 	if cfg.Server.Env == "production" {
@@ -164,27 +162,6 @@ func setupRouter(
 
 		// My programs (student view)
 		protected.GET("/my-programs", programHandler.GetMyPrograms)
-
-		// Exercises
-		exercises := protected.Group("/exercises")
-		{
-			// Admin only
-			adminExercises := exercises.Group("")
-			adminExercises.Use(middleware.RequireRole("admin"))
-			{
-				adminExercises.POST("", exerciseHandler.CreateExercise)
-				adminExercises.PUT("/:id", exerciseHandler.UpdateExercise)
-				adminExercises.DELETE("/:id", exerciseHandler.DeleteExercise)
-			}
-		}
-
-		// Exercise operations on programs
-		protected.GET("/programs/:id/exercises", exerciseHandler.ListExercises)
-		adminProtected := protected.Group("")
-		adminProtected.Use(middleware.RequireRole("admin"))
-		{
-			adminProtected.PUT("/programs/:id/exercises/reorder", exerciseHandler.ReorderExercises)
-		}
 
 		// Sessions
 		sessions := protected.Group("/sessions")

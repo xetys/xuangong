@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -66,7 +67,12 @@ func (h *ExerciseHandler) CreateExercise(c *gin.Context) {
 		return
 	}
 
+	// Debug logging
+	log.Printf("CreateExercise request: %+v", req)
+	log.Printf("OrderIndex value: %d", req.OrderIndex)
+
 	if err := h.validate.Struct(req); err != nil {
+		log.Printf("Validation error: %v", err)
 		respondWithValidationError(c, err)
 		return
 	}

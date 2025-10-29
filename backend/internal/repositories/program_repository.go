@@ -64,11 +64,13 @@ func (r *ProgramRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.
 
 func (r *ProgramRepository) List(ctx context.Context, isTemplate, isPublic *bool, limit, offset int) ([]models.Program, error) {
 	query := `
-		SELECT id, name, description, created_by, is_template, is_public, tags, metadata, created_at, updated_at
-		FROM programs
-		WHERE ($1::boolean IS NULL OR is_template = $1)
-		AND ($2::boolean IS NULL OR is_public = $2)
-		ORDER BY created_at DESC
+		SELECT p.id, p.name, p.description, p.created_by, u.full_name as creator_name,
+		       p.is_template, p.is_public, p.tags, p.metadata, p.created_at, p.updated_at
+		FROM programs p
+		LEFT JOIN users u ON p.created_by = u.id
+		WHERE ($1::boolean IS NULL OR p.is_template = $1)
+		AND ($2::boolean IS NULL OR p.is_public = $2)
+		ORDER BY p.created_at DESC
 		LIMIT $3 OFFSET $4
 	`
 	rows, err := r.db.Query(ctx, query, isTemplate, isPublic, limit, offset)
@@ -77,7 +79,7 @@ func (r *ProgramRepository) List(ctx context.Context, isTemplate, isPublic *bool
 	}
 	defer rows.Close()
 
-	var programs []models.Program
+	programs := make([]models.Program, 0)
 	for rows.Next() {
 		var program models.Program
 		err := rows.Scan(
@@ -85,6 +87,7 @@ func (r *ProgramRepository) List(ctx context.Context, isTemplate, isPublic *bool
 			&program.Name,
 			&program.Description,
 			&program.CreatedBy,
+			&program.CreatorName,
 			&program.IsTemplate,
 			&program.IsPublic,
 			&program.Tags,
@@ -154,7 +157,7 @@ func (r *ProgramRepository) GetUserPrograms(ctx context.Context, userID uuid.UUI
 	}
 	defer rows.Close()
 
-	var userPrograms []models.UserProgram
+	userPrograms := make([]models.UserProgram, 0)
 	for rows.Next() {
 		var up models.UserProgram
 		err := rows.Scan(
@@ -183,4 +186,47 @@ func (r *ProgramRepository) UpdateUserProgramSettings(ctx context.Context, userI
 	`
 	_, err := r.db.Exec(ctx, query, customSettings, userID, programID)
 	return err
+}
+
+func (r *ProgramRepository) GetUserProgramsWithDetails(ctx context.Context, userID uuid.UUID, activeOnly bool) ([]models.Program, error) {
+	query := `
+		SELECT DISTINCT p.id, p.name, p.description, p.created_by, u.full_name as creator_name,
+		       p.is_template, p.is_public, p.tags, p.metadata, p.created_at, p.updated_at
+		FROM programs p
+		LEFT JOIN user_programs up ON p.id = up.program_id AND up.user_id = $1
+		LEFT JOIN users u ON p.created_by = u.id
+		WHERE ((up.user_id = $1 AND ($2 = false OR up.is_active = true))
+		   OR (p.created_by = $1))
+		   AND p.is_template = false
+		ORDER BY p.created_at DESC
+	`
+	rows, err := r.db.Query(ctx, query, userID, activeOnly)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	programs := make([]models.Program, 0)
+	for rows.Next() {
+		var program models.Program
+		err := rows.Scan(
+			&program.ID,
+			&program.Name,
+			&program.Description,
+			&program.CreatedBy,
+			&program.CreatorName,
+			&program.IsTemplate,
+			&program.IsPublic,
+			&program.Tags,
+			&program.Metadata,
+			&program.CreatedAt,
+			&program.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		programs = append(programs, program)
+	}
+
+	return programs, rows.Err()
 }

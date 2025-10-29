@@ -2,15 +2,90 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../models/program.dart';
 import '../services/auth_service.dart';
+import '../services/program_service.dart';
 import '../widgets/practice_history_widget.dart';
 import 'login_screen.dart';
 import 'program_detail_screen.dart';
 import 'program_edit_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final User user;
 
   const HomeScreen({Key? key, required this.user}) : super(key: key);
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  final ProgramService _programService = ProgramService();
+  late TabController _tabController;
+  List<Program>? _myPrograms;
+  List<Program>? _templates;
+  String? _myProgramsError;
+  String? _templatesError;
+  bool _loadingMyPrograms = true;
+  bool _loadingTemplates = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    _loadMyPrograms();
+    _loadTemplates();
+  }
+
+  Future<void> _loadMyPrograms() async {
+    setState(() {
+      _loadingMyPrograms = true;
+      _myProgramsError = null;
+    });
+
+    try {
+      final programs = await _programService.getMyPrograms();
+      setState(() {
+        _myPrograms = programs;
+        _loadingMyPrograms = false;
+      });
+    } catch (e, stackTrace) {
+      print('Error loading programs: $e');
+      print('Stack trace: $stackTrace');
+      setState(() {
+        _myProgramsError = e.toString();
+        _loadingMyPrograms = false;
+      });
+    }
+  }
+
+  Future<void> _loadTemplates() async {
+    setState(() {
+      _loadingTemplates = true;
+      _templatesError = null;
+    });
+
+    try {
+      final templates = await _programService.getTemplates();
+      setState(() {
+        _templates = templates;
+        _loadingTemplates = false;
+      });
+    } catch (e) {
+      setState(() {
+        _templatesError = e.toString();
+        _loadingTemplates = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +129,7 @@ class HomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  user.fullName,
+                  widget.user.fullName,
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w600,
@@ -63,7 +138,7 @@ class HomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  user.isStudent ? 'Student' : 'Instructor',
+                  widget.user.isStudent ? 'Student' : 'Instructor',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey.shade500,
@@ -76,39 +151,31 @@ class HomeScreen extends StatelessWidget {
                 const PracticeHistoryWidget(),
                 const SizedBox(height: 32),
 
-                // Section title
-                const Text(
-                  'Your Programs',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                  ),
+                // Tab bar for My Programs and Templates
+                TabBar(
+                  controller: _tabController,
+                  labelColor: burgundy,
+                  unselectedLabelColor: Colors.grey.shade600,
+                  indicatorColor: burgundy,
+                  tabs: const [
+                    Tab(text: 'My Programs'),
+                    Tab(text: 'Templates'),
+                  ],
                 ),
                 const SizedBox(height: 16),
 
-                // Mock program cards
-                _buildProgramCard(
-                  context,
-                  title: 'Morning Qi Gong',
-                  exercises: 5,
-                  duration: '30 min',
-                  description: 'Gentle movements to awaken the body',
-                ),
-                const SizedBox(height: 12),
-                _buildProgramCard(
-                  context,
-                  title: 'Tai Chi Form',
-                  exercises: 8,
-                  duration: '45 min',
-                  description: 'Yang style 24-form practice',
-                ),
-                const SizedBox(height: 12),
-                _buildProgramCard(
-                  context,
-                  title: 'Ba Gua Circle Walking',
-                  exercises: 6,
-                  duration: '40 min',
-                  description: 'Single palm change meditation walk',
+                // Tab content
+                SizedBox(
+                  height: 400, // Fixed height for tab content
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      // My Programs tab
+                      _buildMyProgramsTab(burgundy),
+                      // Templates tab
+                      _buildTemplatesTab(burgundy),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -116,12 +183,18 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context).push(
+        onPressed: () async {
+          final result = await Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => ProgramEditScreen(user: user),
+              builder: (context) => ProgramEditScreen(user: widget.user),
             ),
           );
+
+          // If a program was created, reload the program lists
+          if (result == true && mounted) {
+            _loadMyPrograms();
+            _loadTemplates();
+          }
         },
         backgroundColor: burgundy,
         foregroundColor: Colors.white,
@@ -131,15 +204,141 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProgramCard(
-    BuildContext context, {
-    required String title,
-    required int exercises,
-    required String duration,
-    required String description,
-  }) {
-    const burgundy = Color(0xFF9B1C1C);
+  Widget _buildMyProgramsTab(Color burgundy) {
+    if (_loadingMyPrograms) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
+    if (_myProgramsError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Error loading programs',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _myProgramsError!,
+                style: TextStyle(
+                  color: Colors.red.shade700,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadMyPrograms,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: burgundy,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_myPrograms == null || _myPrograms!.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.self_improvement, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            Text(
+              'No programs yet',
+              style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Create a program to get started',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: _myPrograms!.length,
+      itemBuilder: (context, index) {
+        final program = _myPrograms![index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _buildProgramCard(context, program, burgundy, isTemplate: false),
+        );
+      },
+    );
+  }
+
+  Widget _buildTemplatesTab(Color burgundy) {
+    if (_loadingTemplates) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_templatesError != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Error loading templates',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: _loadTemplates,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_templates == null || _templates!.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.library_books, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            Text(
+              'No templates available',
+              style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: _templates!.length,
+      itemBuilder: (context, index) {
+        final template = _templates![index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _buildProgramCard(context, template, burgundy, isTemplate: true),
+        );
+      },
+    );
+  }
+
+  Widget _buildProgramCard(
+    BuildContext context,
+    Program program,
+    Color burgundy, {
+    required bool isTemplate,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -156,37 +355,65 @@ class HomeScreen extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () {
-            // Navigate to program detail with mock data
-            final mockProgram = Program.getMockProgram();
-            Navigator.of(context).push(
+          onTap: () async {
+            final result = await Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (context) => ProgramDetailScreen(
-                  program: mockProgram,
-                  user: user,
+                  program: program,
+                  user: widget.user,
                 ),
               ),
             );
+
+            // If changes were saved, reload the program lists
+            if (result == true && mounted) {
+              _loadMyPrograms();
+              _loadTemplates();
+            }
           },
           child: Padding(
             padding: const EdgeInsets.all(20.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        program.name,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (isTemplate)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: burgundy.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'TEMPLATE',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: burgundy,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  description,
+                  program.description,
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey.shade600,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -198,7 +425,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '$exercises exercises',
+                      '${program.exercises.length} exercises',
                       style: TextStyle(
                         fontSize: 14,
                         color: burgundy.withValues(alpha: 0.7),
@@ -212,7 +439,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      duration,
+                      '${program.totalDurationMinutes} min',
                       style: TextStyle(
                         fontSize: 14,
                         color: burgundy.withValues(alpha: 0.7),

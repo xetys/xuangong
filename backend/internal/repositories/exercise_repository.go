@@ -90,7 +90,7 @@ func (r *ExerciseRepository) ListByProgramID(ctx context.Context, programID uuid
 	}
 	defer rows.Close()
 
-	var exercises []models.Exercise
+	exercises := make([]models.Exercise, 0)
 	for rows.Next() {
 		var exercise models.Exercise
 		err := rows.Scan(

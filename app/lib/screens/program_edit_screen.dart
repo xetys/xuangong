@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/program.dart';
 import '../models/exercise.dart';
 import '../models/user.dart';
+import '../services/program_service.dart';
 
 class ProgramEditScreen extends StatefulWidget {
   final User user;
@@ -19,24 +20,33 @@ class ProgramEditScreen extends StatefulWidget {
 
 class _ProgramEditScreenState extends State<ProgramEditScreen> {
   final _formKey = GlobalKey<FormState>();
+  final ProgramService _programService = ProgramService();
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
+  late TextEditingController _tagController;
   late List<Exercise> _exercises;
+  late List<String> _tags;
   late bool _isTemplate;
+  late bool _isPublic;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.program?.name ?? '');
     _descriptionController = TextEditingController(text: widget.program?.description ?? '');
+    _tagController = TextEditingController();
     _exercises = widget.program?.exercises.toList() ?? [];
-    _isTemplate = false; // TODO: Get from program data
+    _tags = widget.program?.tags.toList() ?? [];
+    _isTemplate = widget.program?.isTemplate ?? false;
+    _isPublic = widget.program?.isPublic ?? false;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _tagController.dispose();
     super.dispose();
   }
 
@@ -88,13 +98,87 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
     );
   }
 
-  void _saveProgram() {
-    if (_formKey.currentState!.validate()) {
-      // TODO: Save to backend
+  Future<void> _saveProgram() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (_exercises.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Program saved successfully!')),
+        const SnackBar(
+          content: Text('Please add at least one exercise'),
+          backgroundColor: Colors.red,
+        ),
       );
-      Navigator.pop(context);
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      // Update exercise order indices
+      for (int i = 0; i < _exercises.length; i++) {
+        _exercises[i] = Exercise(
+          id: _exercises[i].id,
+          programId: _exercises[i].programId,
+          name: _exercises[i].name,
+          description: _exercises[i].description,
+          orderIndex: i,
+          type: _exercises[i].type,
+          durationSeconds: _exercises[i].durationSeconds,
+          repetitions: _exercises[i].repetitions,
+          restAfterSeconds: _exercises[i].restAfterSeconds,
+          hasSides: _exercises[i].hasSides,
+          sideDurationSeconds: _exercises[i].sideDurationSeconds,
+          metadata: _exercises[i].metadata,
+        );
+      }
+
+      final program = Program(
+        id: widget.program?.id ?? '',
+        name: _nameController.text,
+        description: _descriptionController.text,
+        exercises: _exercises,
+        isTemplate: _isTemplate,
+        isPublic: _isPublic,
+        tags: _tags,
+      );
+
+      // Create or update program with exercises
+      if (widget.program == null) {
+        // Create new program with exercises
+        await _programService.createProgram(program);
+      } else {
+        // Update existing program with exercises
+        await _programService.updateProgram(widget.program!.id, program);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Program saved successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context, true); // Return true to indicate success
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save program: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
 
@@ -117,17 +201,29 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
           style: TextStyle(color: burgundy),
         ),
         actions: [
-          TextButton(
-            onPressed: _saveProgram,
-            child: Text(
-              'Save',
-              style: TextStyle(
-                color: burgundy,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+          _isSaving
+              ? Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(burgundy),
+                    ),
+                  ),
+                )
+              : TextButton(
+                  onPressed: _saveProgram,
+                  child: Text(
+                    'Save',
+                    style: TextStyle(
+                      color: burgundy,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
           const SizedBox(width: 8),
         ],
       ),
@@ -185,6 +281,96 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
                               return null;
                             },
                           ),
+                          const SizedBox(height: 16),
+                          // Tags management
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Tags',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              // Display existing tags
+                              if (_tags.isNotEmpty)
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: _tags.map((tag) {
+                                    return Chip(
+                                      label: Text(tag),
+                                      deleteIcon: Icon(
+                                        Icons.close,
+                                        size: 18,
+                                        color: burgundy,
+                                      ),
+                                      onDeleted: () {
+                                        setState(() {
+                                          _tags.remove(tag);
+                                        });
+                                      },
+                                      backgroundColor: burgundy.withValues(alpha: 0.1),
+                                      labelStyle: TextStyle(color: burgundy),
+                                      side: BorderSide(
+                                        color: burgundy.withValues(alpha: 0.3),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              const SizedBox(height: 8),
+                              // Add tag input
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _tagController,
+                                      decoration: InputDecoration(
+                                        hintText: 'Add a tag...',
+                                        border: OutlineInputBorder(),
+                                        contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                      onSubmitted: (value) {
+                                        if (value.isNotEmpty && !_tags.contains(value)) {
+                                          setState(() {
+                                            _tags.add(value);
+                                            _tagController.clear();
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      final value = _tagController.text.trim();
+                                      if (value.isNotEmpty && !_tags.contains(value)) {
+                                        setState(() {
+                                          _tags.add(value);
+                                          _tagController.clear();
+                                        });
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: burgundy,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 16,
+                                      ),
+                                    ),
+                                    child: const Text('Add'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                           if (isAdmin) ...[
                             const SizedBox(height: 16),
                             CheckboxListTile(
@@ -192,6 +378,11 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
                               onChanged: (value) {
                                 setState(() {
                                   _isTemplate = value ?? false;
+                                  if (_isTemplate) {
+                                    _isPublic = true; // Templates should be public
+                                  } else {
+                                    _isPublic = false; // Non-templates should not be public
+                                  }
                                 });
                               },
                               title: const Text('Program Template'),
@@ -201,6 +392,23 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
                               controlAffinity: ListTileControlAffinity.leading,
                               activeColor: burgundy,
                             ),
+                            if (_isTemplate) ...[
+                              const SizedBox(height: 8),
+                              CheckboxListTile(
+                                value: _isPublic,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _isPublic = value ?? false;
+                                  });
+                                },
+                                title: const Text('Public Program'),
+                                subtitle: const Text(
+                                  'Make this program visible to all users',
+                                ),
+                                controlAffinity: ListTileControlAffinity.leading,
+                                activeColor: burgundy,
+                              ),
+                            ],
                           ],
                         ],
                       ),
@@ -306,6 +514,7 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
                             )
                           else
                             ReorderableListView.builder(
+                              buildDefaultDragHandles: false,
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
                               itemCount: _exercises.length,
@@ -343,41 +552,44 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
   Widget _buildExerciseItem(Exercise exercise, int index, {required Key key}) {
     const burgundy = Color(0xFF9B1C1C);
 
-    return Card(
+    return ReorderableDragStartListener(
       key: key,
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.drag_handle, color: Colors.grey.shade400),
-            const SizedBox(width: 8),
-            CircleAvatar(
-              backgroundColor: burgundy.withValues(alpha: 0.1),
-              child: Text(
-                '${index + 1}',
-                style: TextStyle(
-                  color: burgundy,
-                  fontWeight: FontWeight.w600,
+      index: index,
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: ListTile(
+          leading: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.drag_handle, color: Colors.grey.shade400),
+              const SizedBox(width: 8),
+              CircleAvatar(
+                backgroundColor: burgundy.withValues(alpha: 0.1),
+                child: Text(
+                  '${index + 1}',
+                  style: TextStyle(
+                    color: burgundy,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        title: Text(exercise.name),
-        subtitle: Text(exercise.displayDuration),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: Icon(Icons.edit, color: burgundy),
-              onPressed: () => _editExercise(index),
-            ),
-            IconButton(
-              icon: Icon(Icons.delete, color: Colors.red.shade400),
-              onPressed: () => _deleteExercise(index),
-            ),
-          ],
+            ],
+          ),
+          title: Text(exercise.name),
+          subtitle: Text(exercise.displayDuration),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: Icon(Icons.edit, color: burgundy),
+                onPressed: () => _editExercise(index),
+              ),
+              IconButton(
+                icon: Icon(Icons.delete, color: Colors.red.shade400),
+                onPressed: () => _deleteExercise(index),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -439,9 +651,11 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
   void _save() {
     if (_formKey.currentState!.validate()) {
       final exercise = Exercise(
-        id: widget.exercise?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        id: widget.exercise?.id ?? '',
+        programId: widget.exercise?.programId ?? '',
         name: _nameController.text,
         description: _descriptionController.text,
+        orderIndex: widget.exercise?.orderIndex ?? 0,
         type: _selectedType,
         durationSeconds: _selectedType != ExerciseType.repetition
             ? int.tryParse(_durationController.text)
@@ -656,40 +870,61 @@ class _ImportProgramDialog extends StatefulWidget {
 
 class _ImportProgramDialogState extends State<_ImportProgramDialog> {
   final TextEditingController _searchController = TextEditingController();
+  final ProgramService _programService = ProgramService();
   String _searchQuery = '';
   Program? _selectedProgram;
+  List<_ProgramListItem> _programs = [];
+  bool _isLoading = true;
 
-  // Mock data - will be replaced with real data from backend
-  final List<_ProgramListItem> _mockPrograms = [
-    _ProgramListItem(
-      program: Program.getMockProgram(),
-      isTemplate: true,
-    ),
-    _ProgramListItem(
-      program: Program(
-        id: '2',
-        name: 'Evening Qi Gong',
-        description: 'Relaxing evening practice',
-        exercises: [],
-      ),
-      isTemplate: true,
-    ),
-    _ProgramListItem(
-      program: Program(
-        id: '3',
-        name: 'Ba Gua Circle Walking',
-        description: 'Single palm change meditation walk',
-        exercises: [],
-      ),
-      isTemplate: false,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadPrograms();
+  }
+
+  Future<void> _loadPrograms() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Load both user programs and public templates
+      final myPrograms = await _programService.getMyPrograms();
+      final templates = await _programService.getTemplates();
+
+      setState(() {
+        _programs = [
+          ...myPrograms.map((p) => _ProgramListItem(
+                program: p,
+                isTemplate: p.isTemplate,
+              )),
+          ...templates.map((p) => _ProgramListItem(
+                program: p,
+                isTemplate: true,
+              )),
+        ];
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load programs: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   List<_ProgramListItem> get _filteredPrograms {
     if (_searchQuery.isEmpty) {
-      return _mockPrograms;
+      return _programs;
     }
-    return _mockPrograms.where((item) {
+    return _programs.where((item) {
       return item.program.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           item.program.description.toLowerCase().contains(_searchQuery.toLowerCase());
     }).toList();
@@ -752,12 +987,39 @@ class _ImportProgramDialogState extends State<_ImportProgramDialog> {
 
             // Program list
             Expanded(
-              child: ListView.builder(
-                itemCount: _filteredPrograms.length,
-                itemBuilder: (context, index) {
-                  final item = _filteredPrograms[index];
-                  final program = item.program;
-                  final isSelected = _selectedProgram?.id == program.id;
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(),
+                    )
+                  : _filteredPrograms.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.search_off,
+                                size: 64,
+                                color: Colors.grey.shade400,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _searchQuery.isEmpty
+                                    ? 'No programs available'
+                                    : 'No programs match your search',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: _filteredPrograms.length,
+                          itemBuilder: (context, index) {
+                            final item = _filteredPrograms[index];
+                            final program = item.program;
+                            final isSelected = _selectedProgram?.id == program.id;
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
