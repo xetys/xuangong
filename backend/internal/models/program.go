@@ -7,17 +7,19 @@ import (
 )
 
 type Program struct {
-	ID          uuid.UUID              `json:"id" db:"id"`
-	Name        string                 `json:"name" db:"name"`
-	Description string                 `json:"description" db:"description"`
-	CreatedBy   *uuid.UUID             `json:"created_by" db:"created_by"`
-	CreatorName *string                `json:"creator_name" db:"creator_name"`
-	IsTemplate  bool                   `json:"is_template" db:"is_template"`
-	IsPublic    bool                   `json:"is_public" db:"is_public"`
-	Tags        []string               `json:"tags" db:"tags"`
-	Metadata    map[string]interface{} `json:"metadata" db:"metadata"`
-	CreatedAt   time.Time              `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at" db:"updated_at"`
+	ID                   uuid.UUID              `json:"id" db:"id"`
+	Name                 string                 `json:"name" db:"name"`
+	Description          string                 `json:"description" db:"description"`
+	CreatedBy            *uuid.UUID             `json:"created_by" db:"created_by"`
+	CreatorName          *string                `json:"creator_name" db:"creator_name"`
+	IsTemplate           bool                   `json:"is_template" db:"is_template"`
+	IsPublic             bool                   `json:"is_public" db:"is_public"`
+	RepetitionsPlanned   *int                   `json:"repetitions_planned,omitempty" db:"repetitions_planned"`
+	RepetitionsCompleted *int                   `json:"repetitions_completed,omitempty" db:"repetitions_completed"`
+	Tags                 []string               `json:"tags" db:"tags"`
+	Metadata             map[string]interface{} `json:"metadata" db:"metadata"`
+	CreatedAt            time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt            time.Time              `json:"updated_at" db:"updated_at"`
 }
 
 type ProgramWithExercises struct {

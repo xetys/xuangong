@@ -48,7 +48,7 @@ func main() {
 	// Initialize services
 	authService := services.NewAuthService(userRepo, cfg)
 	programService := services.NewProgramService(programRepo, exerciseRepo)
-	sessionService := services.NewSessionService(sessionRepo)
+	sessionService := services.NewSessionService(sessionRepo, programRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -148,14 +148,14 @@ func setupRouter(
 		{
 			programs.GET("", programHandler.ListPrograms)
 			programs.GET("/:id", programHandler.GetProgram)
+			programs.POST("", programHandler.CreateProgram)      // All users can create programs
+			programs.PUT("/:id", programHandler.UpdateProgram)   // Authorization check in handler
+			programs.DELETE("/:id", programHandler.DeleteProgram) // Authorization check needed
 
 			// Admin only
 			adminPrograms := programs.Group("")
 			adminPrograms.Use(middleware.RequireRole("admin"))
 			{
-				adminPrograms.POST("", programHandler.CreateProgram)
-				adminPrograms.PUT("/:id", programHandler.UpdateProgram)
-				adminPrograms.DELETE("/:id", programHandler.DeleteProgram)
 				adminPrograms.POST("/:id/assign", programHandler.AssignProgram)
 			}
 		}
@@ -172,6 +172,7 @@ func setupRouter(
 			sessions.POST("/start", sessionHandler.StartSession)
 			sessions.PUT("/:id/exercise/:exercise_id", sessionHandler.LogExercise)
 			sessions.PUT("/:id/complete", sessionHandler.CompleteSession)
+			sessions.DELETE("/:id", sessionHandler.DeleteSession)
 		}
 
 		// TODO: Add submissions, feedback, exercises endpoints

@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../screens/practice_calendar_screen.dart';
+import '../services/session_service.dart';
+import '../models/session.dart';
 
 class PracticeHistoryWidget extends StatefulWidget {
-  const PracticeHistoryWidget({Key? key}) : super(key: key);
+  final VoidCallback? onRefresh;
+
+  const PracticeHistoryWidget({Key? key, this.onRefresh}) : super(key: key);
 
   @override
   State<PracticeHistoryWidget> createState() => _PracticeHistoryWidgetState();
@@ -10,14 +15,92 @@ class PracticeHistoryWidget extends StatefulWidget {
 
 class _PracticeHistoryWidgetState extends State<PracticeHistoryWidget> {
   final ScrollController _scrollController = ScrollController();
+  final SessionService _sessionService = SessionService();
+  List<PracticeDay>? _practiceData;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _loadPracticeHistory();
     // Scroll to the right after the widget is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToEnd();
     });
+  }
+
+  // Public method to refresh data
+  void refresh() {
+    _loadPracticeHistory();
+  }
+
+  Future<void> _loadPracticeHistory() async {
+    setState(() => _isLoading = true);
+
+    try {
+      // Get last 7 days
+      final now = DateTime.now();
+      final startDate = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+      final endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+      // Fetch sessions
+      final sessions = await _sessionService.listSessions(
+        startDate: startDate,
+        endDate: endDate,
+        limit: 100,
+      );
+
+      // Group sessions by day
+      final Map<String, List<SessionWithLogs>> sessionsByDay = {};
+      for (final session in sessions) {
+        if (session.session.completedAt != null) {
+          final dateKey = DateFormat('yyyy-MM-dd').format(session.session.completedAt!);
+          sessionsByDay.putIfAbsent(dateKey, () => []);
+          sessionsByDay[dateKey]!.add(session);
+        }
+      }
+
+      // Build practice data for last 7 days
+      final practiceData = <PracticeDay>[];
+      for (int i = 6; i >= 0; i--) {
+        final date = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
+        final dateKey = DateFormat('yyyy-MM-dd').format(date);
+        final daySessions = sessionsByDay[dateKey] ?? [];
+
+        // Determine day name
+        String dayName;
+        if (i == 0) {
+          dayName = 'Today';
+        } else if (i == 1) {
+          dayName = 'Yesterday';
+        } else {
+          dayName = DateFormat('E').format(date); // Mon, Tue, etc.
+        }
+
+        practiceData.add(PracticeDay(
+          dayName: dayName,
+          date: DateFormat('d').format(date),
+          status: daySessions.isEmpty ? PracticeStatus.skipped : PracticeStatus.completed,
+          sessionNames: daySessions.map((s) => s.session.programName ?? 'Practice').toList(),
+        ));
+      }
+
+      setState(() {
+        _practiceData = practiceData;
+        _isLoading = false;
+      });
+
+      // Scroll to end after data is loaded and widget is rebuilt
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToEnd();
+      });
+    } catch (e) {
+      print('Error loading practice history: $e');
+      setState(() {
+        _practiceData = [];
+        _isLoading = false;
+      });
+    }
   }
 
   void _scrollToEnd() {
@@ -40,7 +123,6 @@ class _PracticeHistoryWidgetState extends State<PracticeHistoryWidget> {
   @override
   Widget build(BuildContext context) {
     const burgundy = Color(0xFF9B1C1C);
-    final reversedData = mockPracticeData.reversed.toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,12 +140,17 @@ class _PracticeHistoryWidgetState extends State<PracticeHistoryWidget> {
                 ),
               ),
               GestureDetector(
-                onTap: () {
-                  Navigator.of(context).push(
+                onTap: () async {
+                  final result = await Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (context) => const PracticeCalendarScreen(),
                     ),
                   );
+
+                  // Refresh if any changes were made in the calendar
+                  if (result == true && mounted) {
+                    _loadPracticeHistory();
+                  }
                 },
                 child: Text(
                   'Show All',
@@ -80,19 +167,28 @@ class _PracticeHistoryWidgetState extends State<PracticeHistoryWidget> {
         const SizedBox(height: 12),
         SizedBox(
           height: 130,
-          child: ListView.builder(
-            controller: _scrollController,
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            itemCount: reversedData.length,
-            itemBuilder: (context, index) {
-              final practice = reversedData[index];
-              return Padding(
-                padding: EdgeInsets.only(right: index < reversedData.length - 1 ? 12 : 0),
-                child: _buildPracticeCard(practice, burgundy),
-              );
-            },
-          ),
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _practiceData == null || _practiceData!.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No practice history yet',
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      itemCount: _practiceData!.length,
+                      itemBuilder: (context, index) {
+                        final practice = _practiceData![index];
+                        return Padding(
+                          padding: EdgeInsets.only(right: index < _practiceData!.length - 1 ? 12 : 0),
+                          child: _buildPracticeCard(practice, burgundy),
+                        );
+                      },
+                    ),
         ),
       ],
     );
@@ -101,7 +197,7 @@ class _PracticeHistoryWidgetState extends State<PracticeHistoryWidget> {
   Widget _buildPracticeCard(PracticeDay practice, Color burgundy) {
     final isCompleted = practice.status == PracticeStatus.completed;
     final statusColor = isCompleted ? burgundy : Colors.grey.shade400;
-    final visibleSessions = practice.sessionNames.take(3).toList();
+    final visibleSessions = practice.sessionNames.take(2).toList();
     final remainingSessions = practice.sessionNames.length - visibleSessions.length;
 
     return Container(

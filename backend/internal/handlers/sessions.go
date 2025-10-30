@@ -69,6 +69,7 @@ func (h *SessionHandler) ListSessions(c *gin.Context) {
 			respondWithError(c, appErrors.NewBadRequestError("Invalid start date format"))
 			return
 		}
+		// Start of day (00:00:00)
 		startDate = &t
 	}
 	if query.EndDate != nil {
@@ -77,7 +78,9 @@ func (h *SessionHandler) ListSessions(c *gin.Context) {
 			respondWithError(c, appErrors.NewBadRequestError("Invalid end date format"))
 			return
 		}
-		endDate = &t
+		// End of day (23:59:59.999999999)
+		endOfDay := time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 999999999, t.Location())
+		endDate = &endOfDay
 	}
 
 	sessions, err := h.sessionService.ListSessions(
@@ -219,13 +222,18 @@ func (h *SessionHandler) LogExercise(c *gin.Context) {
 		return
 	}
 
+	var notes *string
+	if req.Notes != "" {
+		notes = &req.Notes
+	}
+
 	log := &models.ExerciseLog{
 		PlannedDurationSeconds: req.PlannedDurationSeconds,
 		ActualDurationSeconds:  req.ActualDurationSeconds,
 		RepetitionsPlanned:     req.RepetitionsPlanned,
 		RepetitionsCompleted:   req.RepetitionsCompleted,
 		Skipped:                req.Skipped,
-		Notes:                  req.Notes,
+		Notes:                  notes,
 	}
 
 	if err := h.sessionService.LogExercise(c.Request.Context(), sessionID, userID, exerciseID, log); err != nil {
@@ -272,13 +280,51 @@ func (h *SessionHandler) CompleteSession(c *gin.Context) {
 		return
 	}
 
+	// Parse the optional completed_at timestamp
+	var completedAt *time.Time
+	if req.CompletedAt != nil && *req.CompletedAt != "" {
+		// Try multiple formats
+		formats := []string{
+			time.RFC3339,
+			"2006-01-02T15:04:05.999999999",
+			"2006-01-02T15:04:05",
+			time.RFC3339Nano,
+		}
+
+		var parsedTime time.Time
+		var parseErr error
+		for _, format := range formats {
+			parsedTime, parseErr = time.Parse(format, *req.CompletedAt)
+			if parseErr == nil {
+				break
+			}
+		}
+
+		if parseErr != nil {
+			respondWithError(c, appErrors.NewBadRequestError("Invalid completed_at format. Expected ISO8601/RFC3339 format"))
+			return
+		}
+		completedAt = &parsedTime
+	}
+
+	// Get values or use defaults
+	totalDuration := 0
+	if req.TotalDurationSeconds != nil {
+		totalDuration = *req.TotalDurationSeconds
+	}
+	completionRate := 100.0
+	if req.CompletionRate != nil {
+		completionRate = *req.CompletionRate
+	}
+
 	if err := h.sessionService.CompleteSession(
 		c.Request.Context(),
 		sessionID,
 		userID,
-		req.TotalDurationSeconds,
-		req.CompletionRate,
+		totalDuration,
+		completionRate,
 		req.Notes,
+		completedAt,
 	); err != nil {
 		respondWithAppError(c, err)
 		return
@@ -310,4 +356,35 @@ func (h *SessionHandler) GetStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
+}
+
+// DeleteSession godoc
+// @Summary Delete a practice session
+// @Tags sessions
+// @Produce json
+// @Param id path string true "Session ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/sessions/{id} [delete]
+// @Security BearerAuth
+func (h *SessionHandler) DeleteSession(c *gin.Context) {
+	sessionID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		respondWithError(c, appErrors.NewBadRequestError("Invalid session ID"))
+		return
+	}
+
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	if err := h.sessionService.DeleteSession(c.Request.Context(), sessionID, userID); err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Session deleted successfully",
+	})
 }

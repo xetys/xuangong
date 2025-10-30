@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"log"
+
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	appErrors "github.com/xuangong/backend/pkg/errors"
@@ -8,6 +10,13 @@ import (
 
 // respondWithError sends an error response
 func respondWithError(c *gin.Context, err *appErrors.AppError) {
+	// Log the full error including underlying error
+	if err.Err != nil {
+		log.Printf("[ERROR] %s: %s (underlying error: %v)", err.Code, err.Message, err.Err)
+	} else {
+		log.Printf("[ERROR] %s: %s", err.Code, err.Message)
+	}
+
 	c.JSON(err.HTTPStatus, gin.H{
 		"error": gin.H{
 			"code":    err.Code,

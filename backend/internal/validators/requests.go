@@ -22,23 +22,25 @@ type RefreshTokenRequest struct {
 
 // Program requests
 type CreateProgramRequest struct {
-	Name        string                 `json:"name" validate:"required,min=3,max=255"`
-	Description string                 `json:"description"`
-	IsTemplate  bool                   `json:"is_template"`
-	IsPublic    bool                   `json:"is_public"`
-	Tags        []string               `json:"tags"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	Exercises   []ExerciseRequest      `json:"exercises" validate:"dive"`
+	Name                string                 `json:"name" validate:"required,min=3,max=255"`
+	Description         string                 `json:"description"`
+	IsTemplate          bool                   `json:"is_template"`
+	IsPublic            bool                   `json:"is_public"`
+	Tags                []string               `json:"tags"`
+	Metadata            map[string]interface{} `json:"metadata"`
+	RepetitionsPlanned  *int                   `json:"repetitions_planned" validate:"omitempty,gte=1"`
+	Exercises           []ExerciseRequest      `json:"exercises" validate:"dive"`
 }
 
 type UpdateProgramRequest struct {
-	Name        *string                `json:"name" validate:"omitempty,min=3,max=255"`
-	Description *string                `json:"description"`
-	IsTemplate  *bool                  `json:"is_template"`
-	IsPublic    *bool                  `json:"is_public"`
-	Tags        []string               `json:"tags"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	Exercises   []ExerciseRequest      `json:"exercises" validate:"dive"`
+	Name                *string                `json:"name" validate:"omitempty,min=3,max=255"`
+	Description         *string                `json:"description"`
+	IsTemplate          *bool                  `json:"is_template"`
+	IsPublic            *bool                  `json:"is_public"`
+	Tags                []string               `json:"tags"`
+	Metadata            map[string]interface{} `json:"metadata"`
+	RepetitionsPlanned  *int                   `json:"repetitions_planned" validate:"omitempty,gte=1"`
+	Exercises           []ExerciseRequest      `json:"exercises" validate:"dive"`
 }
 
 // ExerciseRequest is used for exercises within program requests
@@ -108,9 +110,10 @@ type LogExerciseRequest struct {
 }
 
 type CompleteSessionRequest struct {
-	TotalDurationSeconds int     `json:"total_duration_seconds" validate:"required,min=0"`
-	CompletionRate       float64 `json:"completion_rate" validate:"required,min=0,max=100"`
-	Notes                string  `json:"notes"`
+	TotalDurationSeconds *int     `json:"total_duration_seconds" validate:"omitempty,min=0"`
+	CompletionRate       *float64 `json:"completion_rate" validate:"omitempty,min=0,max=100"`
+	Notes                string   `json:"notes"`
+	CompletedAt          *string  `json:"completed_at"`
 }
 
 // Submission requests

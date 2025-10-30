@@ -10,26 +10,27 @@ type PracticeSession struct {
 	ID                   uuid.UUID              `json:"id" db:"id"`
 	UserID               uuid.UUID              `json:"user_id" db:"user_id"`
 	ProgramID            uuid.UUID              `json:"program_id" db:"program_id"`
+	ProgramName          *string                `json:"program_name,omitempty"`
 	StartedAt            time.Time              `json:"started_at" db:"started_at"`
-	CompletedAt          *time.Time             `json:"completed_at" db:"completed_at"`
-	TotalDurationSeconds *int                   `json:"total_duration_seconds" db:"total_duration_seconds"`
-	CompletionRate       *float64               `json:"completion_rate" db:"completion_rate"`
-	Notes                string                 `json:"notes" db:"notes"`
-	DeviceInfo           map[string]interface{} `json:"device_info" db:"device_info"`
+	CompletedAt          *time.Time             `json:"completed_at,omitempty" db:"completed_at"`
+	TotalDurationSeconds *int                   `json:"total_duration_seconds,omitempty" db:"total_duration_seconds"`
+	CompletionRate       *float64               `json:"completion_rate,omitempty" db:"completion_rate"`
+	Notes                *string                `json:"notes,omitempty" db:"notes"`
+	DeviceInfo           map[string]interface{} `json:"device_info,omitempty" db:"device_info"`
 }
 
 type ExerciseLog struct {
 	ID                     uuid.UUID  `json:"id" db:"id"`
 	SessionID              uuid.UUID  `json:"session_id" db:"session_id"`
-	ExerciseID             *uuid.UUID `json:"exercise_id" db:"exercise_id"`
-	StartedAt              *time.Time `json:"started_at" db:"started_at"`
-	CompletedAt            *time.Time `json:"completed_at" db:"completed_at"`
-	PlannedDurationSeconds *int       `json:"planned_duration_seconds" db:"planned_duration_seconds"`
-	ActualDurationSeconds  *int       `json:"actual_duration_seconds" db:"actual_duration_seconds"`
-	RepetitionsPlanned     *int       `json:"repetitions_planned" db:"repetitions_planned"`
-	RepetitionsCompleted   *int       `json:"repetitions_completed" db:"repetitions_completed"`
+	ExerciseID             *uuid.UUID `json:"exercise_id,omitempty" db:"exercise_id"`
+	StartedAt              *time.Time `json:"started_at,omitempty" db:"started_at"`
+	CompletedAt            *time.Time `json:"completed_at,omitempty" db:"completed_at"`
+	PlannedDurationSeconds *int       `json:"planned_duration_seconds,omitempty" db:"planned_duration_seconds"`
+	ActualDurationSeconds  *int       `json:"actual_duration_seconds,omitempty" db:"actual_duration_seconds"`
+	RepetitionsPlanned     *int       `json:"repetitions_planned,omitempty" db:"repetitions_planned"`
+	RepetitionsCompleted   *int       `json:"repetitions_completed,omitempty" db:"repetitions_completed"`
 	Skipped                bool       `json:"skipped" db:"skipped"`
-	Notes                  string     `json:"notes" db:"notes"`
+	Notes                  *string    `json:"notes,omitempty" db:"notes"`
 }
 
 type SessionWithLogs struct {

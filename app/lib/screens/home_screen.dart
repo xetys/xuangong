@@ -26,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   String? _templatesError;
   bool _loadingMyPrograms = true;
   bool _loadingTemplates = true;
+  final GlobalKey<State<PracticeHistoryWidget>> _practiceHistoryKey = GlobalKey();
 
   @override
   void initState() {
@@ -148,7 +149,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 const SizedBox(height: 32),
 
                 // Practice history widget
-                const PracticeHistoryWidget(),
+                PracticeHistoryWidget(key: _practiceHistoryKey),
                 const SizedBox(height: 32),
 
                 // Tab bar for My Programs and Templates
@@ -365,10 +366,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               ),
             );
 
-            // If changes were saved, reload the program lists
-            if (result == true && mounted) {
+            // If changes were saved or session completed, reload
+            if (result != null && mounted) {
               _loadMyPrograms();
               _loadTemplates();
+              // Refresh practice history widget
+              final state = _practiceHistoryKey.currentState as dynamic;
+              if (state != null && state.mounted) {
+                state.refresh();
+              }
             }
           },
           child: Padding(
@@ -445,6 +451,24 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         color: burgundy.withValues(alpha: 0.7),
                       ),
                     ),
+                    // Show repetitions progress for non-template programs
+                    if (!isTemplate && program.repetitionsPlanned != null) ...[
+                      const SizedBox(width: 16),
+                      Icon(
+                        Icons.repeat,
+                        size: 16,
+                        color: burgundy.withValues(alpha: 0.7),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${program.repetitionsCompleted ?? 0}/${program.repetitionsPlanned}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: burgundy.withValues(alpha: 0.7),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],

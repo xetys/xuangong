@@ -1,80 +1,10 @@
 import 'package:flutter/material.dart';
-
-// Practice status enum
-enum PracticeStatus { completed, partial, skipped }
-
-// Practice day model (used by practice history widget)
-class PracticeDay {
-  final String dayName;
-  final String date;
-  final PracticeStatus status;
-  final List<String> sessionNames;
-  final int durationMinutes;
-  final int exercisesCompleted;
-  final int totalExercises;
-
-  PracticeDay({
-    required this.dayName,
-    required this.date,
-    required this.status,
-    this.sessionNames = const [],
-    this.durationMinutes = 0,
-    this.exercisesCompleted = 0,
-    this.totalExercises = 0,
-  });
-}
-
-// Mock practice data
-final List<PracticeDay> mockPracticeData = [
-  PracticeDay(
-    dayName: 'Today',
-    date: '27',
-    status: PracticeStatus.completed,
-    sessionNames: ['Morning Qi Gong', 'Tai Chi Form'],
-    durationMinutes: 30,
-  ),
-  PracticeDay(
-    dayName: 'Sat',
-    date: '26',
-    status: PracticeStatus.completed,
-    sessionNames: ['Morning Qi Gong', 'Ba Gua Circle Walk', 'Tai Chi Form'],
-    durationMinutes: 28,
-  ),
-  PracticeDay(
-    dayName: 'Fri',
-    date: '25',
-    status: PracticeStatus.partial,
-    sessionNames: ['Morning Qi Gong'],
-    exercisesCompleted: 3,
-    totalExercises: 5,
-  ),
-  PracticeDay(
-    dayName: 'Thu',
-    date: '24',
-    status: PracticeStatus.completed,
-    sessionNames: ['Morning Qi Gong', 'Tai Chi Form', 'Ba Gua Walk', 'Xing Yi Practice'],
-    durationMinutes: 32,
-  ),
-];
-
-// Individual practice session model
-class PracticeSession {
-  final String id;
-  final String dayName;
-  final String date;
-  final String sessionName;
-  final int durationMinutes;
-  final DateTime timestamp;
-
-  PracticeSession({
-    required this.id,
-    required this.dayName,
-    required this.date,
-    required this.sessionName,
-    required this.durationMinutes,
-    required this.timestamp,
-  });
-}
+import 'package:intl/intl.dart';
+import '../models/session.dart';
+import '../models/program.dart';
+import '../services/session_service.dart';
+import '../services/program_service.dart';
+import 'session_edit_screen.dart';
 
 class PracticeCalendarScreen extends StatefulWidget {
   const PracticeCalendarScreen({Key? key}) : super(key: key);
@@ -84,46 +14,67 @@ class PracticeCalendarScreen extends StatefulWidget {
 }
 
 class _PracticeCalendarScreenState extends State<PracticeCalendarScreen> {
-  // Convert PracticeDay data to individual sessions
-  List<PracticeSession> _sessions = [];
+  final SessionService _sessionService = SessionService();
+  final ProgramService _programService = ProgramService();
+
+  List<SessionWithLogs> _sessions = [];
+  Map<String, Program> _programs = {};
+  bool _isLoading = true;
+  bool _hasChanges = false; // Track if any sessions were modified
 
   @override
   void initState() {
     super.initState();
-    _initializeSessions();
+    _loadSessions();
   }
 
-  void _initializeSessions() {
-    _sessions = [];
-    int idCounter = 0;
+  Future<void> _loadSessions() async {
+    try {
+      setState(() => _isLoading = true);
 
-    for (var practiceDay in mockPracticeData) {
-      // Only add sessions if they exist (not skipped days)
-      if (practiceDay.sessionNames.isNotEmpty) {
-        for (var sessionName in practiceDay.sessionNames) {
-          _sessions.add(
-            PracticeSession(
-              id: 'session_${idCounter++}',
-              dayName: practiceDay.dayName,
-              date: practiceDay.date,
-              sessionName: sessionName,
-              durationMinutes: practiceDay.durationMinutes ~/
-                  (practiceDay.sessionNames.length),
-              timestamp: DateTime.now().subtract(
-                Duration(days: mockPracticeData.indexOf(practiceDay)),
-              ),
-            ),
-          );
-        }
+      // Load sessions from backend
+      final sessions = await _sessionService.listSessions(limit: 100);
+
+      // Load programs to get their names
+      final programs = await _programService.getMyPrograms();
+      final programMap = <String, Program>{};
+      for (var program in programs) {
+        programMap[program.id] = program;
+      }
+
+      setState(() {
+        _sessions = sessions;
+        _programs = programMap;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load sessions: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
   // Group sessions by date
-  Map<String, List<PracticeSession>> _groupSessionsByDate() {
-    final grouped = <String, List<PracticeSession>>{};
-    for (var session in _sessions) {
-      final dateKey = '${session.dayName}, ${session.date}';
+  Map<String, List<SessionWithLogs>> _groupSessionsByDate() {
+    // Sort sessions by date descending first
+    final sortedSessions = List<SessionWithLogs>.from(_sessions);
+    sortedSessions.sort((a, b) {
+      final dateA = a.session.completedAt ?? a.session.startedAt;
+      final dateB = b.session.completedAt ?? b.session.startedAt;
+      return dateB.compareTo(dateA); // Descending order (newest first)
+    });
+
+    // Group by date, maintaining order
+    final grouped = <String, List<SessionWithLogs>>{};
+    for (var session in sortedSessions) {
+      final date = session.session.completedAt ?? session.session.startedAt;
+      final dateKey = DateFormat('EEEE, MMM dd').format(date);
       if (!grouped.containsKey(dateKey)) {
         grouped[dateKey] = [];
       }
@@ -145,7 +96,7 @@ class _PracticeCalendarScreenState extends State<PracticeCalendarScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: burgundy),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context, _hasChanges),
         ),
         title: Text(
           'Practice History',
@@ -156,40 +107,42 @@ class _PracticeCalendarScreenState extends State<PracticeCalendarScreen> {
           ),
         ),
       ),
-      body: _sessions.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.self_improvement,
-                    size: 64,
-                    color: Colors.grey.shade300,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _sessions.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.self_improvement,
+                        size: 64,
+                        color: Colors.grey.shade300,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No practice sessions yet',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No practice sessions yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(24),
-              itemCount: dateKeys.length,
-              itemBuilder: (context, index) {
-                final dateKey = dateKeys[index];
-                final sessions = groupedSessions[dateKey]!;
-                return _buildDateGroup(dateKey, sessions, burgundy);
-              },
-            ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(24),
+                  itemCount: dateKeys.length,
+                  itemBuilder: (context, index) {
+                    final dateKey = dateKeys[index];
+                    final sessions = groupedSessions[dateKey]!;
+                    return _buildDateGroup(dateKey, sessions, burgundy);
+                  },
+                ),
     );
   }
 
-  Widget _buildDateGroup(String dateKey, List<PracticeSession> sessions, Color burgundy) {
+  Widget _buildDateGroup(String dateKey, List<SessionWithLogs> sessions, Color burgundy) {
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       child: Column(
@@ -213,7 +166,10 @@ class _PracticeCalendarScreenState extends State<PracticeCalendarScreen> {
     );
   }
 
-  Widget _buildSessionCard(PracticeSession session, Color burgundy) {
+  Widget _buildSessionCard(SessionWithLogs sessionData, Color burgundy) {
+    final program = _programs[sessionData.session.programId];
+    final programName = program?.name ?? 'Unknown Program';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -235,7 +191,7 @@ class _PracticeCalendarScreenState extends State<PracticeCalendarScreen> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => _showSessionDetails(context, session),
+          onTap: () => _showSessionDetails(context, sessionData),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -261,32 +217,48 @@ class _PracticeCalendarScreenState extends State<PracticeCalendarScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        session.sessionName,
+                        programName,
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      if (session.durationMinutes > 0) ...[
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.schedule,
+                            size: 14,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            DateFormat('HH:mm').format(
+                              sessionData.session.completedAt ?? sessionData.session.startedAt
+                            ),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          if (sessionData.exerciseLogs.isNotEmpty) ...[
+                            const SizedBox(width: 12),
                             Icon(
-                              Icons.schedule,
+                              Icons.fitness_center,
                               size: 14,
                               color: Colors.grey.shade600,
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              '${session.durationMinutes} min',
+                              '${sessionData.exerciseLogs.length} exercises',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey.shade600,
                               ),
                             ),
                           ],
-                        ),
-                      ],
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -315,10 +287,13 @@ class _PracticeCalendarScreenState extends State<PracticeCalendarScreen> {
     );
   }
 
-  void _showSessionDetails(BuildContext context, PracticeSession session) {
+  void _showSessionDetails(BuildContext context, SessionWithLogs sessionData) async {
     const burgundy = Color(0xFF9B1C1C);
+    final program = _programs[sessionData.session.programId];
+    final programName = program?.name ?? 'Unknown Program';
+    final date = sessionData.session.completedAt ?? sessionData.session.startedAt;
 
-    showDialog(
+    final result = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
@@ -326,8 +301,8 @@ class _PracticeCalendarScreenState extends State<PracticeCalendarScreen> {
           children: [
             Expanded(
               child: Text(
-                session.sessionName,
-                style: TextStyle(
+                programName,
+                style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
                   color: burgundy,
@@ -349,7 +324,7 @@ class _PracticeCalendarScreenState extends State<PracticeCalendarScreen> {
             children: [
               // Date
               Text(
-                'Date',
+                'DATE',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -359,18 +334,18 @@ class _PracticeCalendarScreenState extends State<PracticeCalendarScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                '${session.dayName}, ${session.date}',
+                DateFormat('EEEE, MMMM dd, yyyy - HH:mm').format(date),
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                 ),
               ),
 
-              // Duration
-              if (session.durationMinutes > 0) ...[
+              // Exercise logs
+              if (sessionData.exerciseLogs.isNotEmpty) ...[
                 const SizedBox(height: 24),
                 Text(
-                  'Duration',
+                  'EXERCISES LOGGED',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -380,7 +355,7 @@ class _PracticeCalendarScreenState extends State<PracticeCalendarScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${session.durationMinutes} minutes',
+                  '${sessionData.exerciseLogs.length} exercises',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
@@ -388,55 +363,75 @@ class _PracticeCalendarScreenState extends State<PracticeCalendarScreen> {
                 ),
               ],
 
-              // Status
-              const SizedBox(height: 24),
-              Text(
-                'Status',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade600,
-                  letterSpacing: 1,
+              // Notes
+              if (sessionData.session.notes != null && sessionData.session.notes!.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                Text(
+                  'NOTES',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade600,
+                    letterSpacing: 1,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    Icons.check_circle,
-                    color: burgundy,
-                    size: 20,
+                const SizedBox(height: 8),
+                Text(
+                  sessionData.session.notes!,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Completed',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ],
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              _confirmDelete(context, session);
+              final deleted = await _deleteSessionWithConfirmation(sessionData.session.id);
+              if (deleted) {
+                setState(() => _hasChanges = true);
+                _loadSessions(); // Reload to show changes
+              }
             },
-            child: Text(
+            child: const Text(
               'Delete',
               style: TextStyle(
-                color: Colors.red.shade700,
+                color: Colors.red,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
+            onPressed: () async {
+              Navigator.pop(context);
+              final edited = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SessionEditScreen(
+                    sessionId: sessionData.session.id,
+                  ),
+                ),
+              );
+              if (edited == true) {
+                setState(() => _hasChanges = true);
+                _loadSessions(); // Reload to show changes
+              }
+            },
+            child: const Text(
+              'Edit',
+              style: TextStyle(
+                color: burgundy,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'close'),
+            child: const Text(
               'Close',
               style: TextStyle(
                 color: burgundy,
@@ -447,46 +442,57 @@ class _PracticeCalendarScreenState extends State<PracticeCalendarScreen> {
         ],
       ),
     );
+
+    // Reload if edited
+    if (result == true && mounted) {
+      _loadSessions();
+    }
   }
 
-  void _confirmDelete(BuildContext context, PracticeSession session) {
-    const burgundy = Color(0xFF9B1C1C);
-
-    showDialog(
+  Future<bool> _deleteSessionWithConfirmation(String sessionId) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Session?'),
-        content: Text(
-          'Are you sure you want to delete "${session.sessionName}"? This action cannot be undone.',
-        ),
+        title: const Text('Delete Session'),
+        content: const Text('Are you sure you want to delete this session? This action cannot be undone.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              setState(() {
-                _sessions.removeWhere((s) => s.id == session.id);
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Session deleted'),
-                  backgroundColor: burgundy,
-                ),
-              );
-            },
-            child: Text(
-              'Delete',
-              style: TextStyle(
-                color: Colors.red.shade700,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
           ),
         ],
       ),
     );
+
+    if (confirmed != true) return false;
+
+    try {
+      await _sessionService.deleteSession(sessionId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Session deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      return true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete session: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return false;
+    }
   }
 }

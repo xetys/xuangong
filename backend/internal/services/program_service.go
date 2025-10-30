@@ -151,13 +151,18 @@ func (s *ProgramService) Update(ctx context.Context, id uuid.UUID, updates *mode
 	return nil
 }
 
-func (s *ProgramService) Delete(ctx context.Context, id uuid.UUID) error {
+func (s *ProgramService) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	existing, err := s.programRepo.GetByID(ctx, id)
 	if err != nil {
 		return appErrors.NewInternalError("Failed to fetch program").WithError(err)
 	}
 	if existing == nil {
 		return appErrors.NewNotFoundError("Program")
+	}
+
+	// Authorization check: only the creator can delete their program
+	if existing.CreatedBy != nil && *existing.CreatedBy != userID {
+		return appErrors.NewAuthorizationError("You don't have permission to delete this program")
 	}
 
 	if err := s.programRepo.Delete(ctx, id); err != nil {

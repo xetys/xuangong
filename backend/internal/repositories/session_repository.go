@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -61,14 +62,15 @@ func (r *SessionRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.
 
 func (r *SessionRepository) List(ctx context.Context, userID uuid.UUID, programID *uuid.UUID, startDate, endDate *time.Time, limit, offset int) ([]models.PracticeSession, error) {
 	query := `
-		SELECT id, user_id, program_id, started_at, completed_at,
-		       total_duration_seconds, completion_rate, notes, device_info
-		FROM practice_sessions
-		WHERE user_id = $1
-		AND ($2::uuid IS NULL OR program_id = $2)
-		AND ($3::timestamp IS NULL OR started_at >= $3)
-		AND ($4::timestamp IS NULL OR started_at <= $4)
-		ORDER BY started_at DESC
+		SELECT ps.id, ps.user_id, ps.program_id, p.name as program_name, ps.started_at, ps.completed_at,
+		       ps.total_duration_seconds, ps.completion_rate, ps.notes, ps.device_info
+		FROM practice_sessions ps
+		LEFT JOIN programs p ON ps.program_id = p.id
+		WHERE ps.user_id = $1
+		AND ($2::uuid IS NULL OR ps.program_id = $2)
+		AND ($3::timestamp IS NULL OR ps.started_at >= $3)
+		AND ($4::timestamp IS NULL OR ps.started_at <= $4)
+		ORDER BY ps.started_at DESC
 		LIMIT $5 OFFSET $6
 	`
 	rows, err := r.db.Query(ctx, query, userID, programID, startDate, endDate, limit, offset)
@@ -80,10 +82,12 @@ func (r *SessionRepository) List(ctx context.Context, userID uuid.UUID, programI
 	sessions := make([]models.PracticeSession, 0)
 	for rows.Next() {
 		var session models.PracticeSession
+		var programName sql.NullString
 		err := rows.Scan(
 			&session.ID,
 			&session.UserID,
 			&session.ProgramID,
+			&programName,
 			&session.StartedAt,
 			&session.CompletedAt,
 			&session.TotalDurationSeconds,
@@ -94,19 +98,37 @@ func (r *SessionRepository) List(ctx context.Context, userID uuid.UUID, programI
 		if err != nil {
 			return nil, err
 		}
+		if programName.Valid {
+			session.ProgramName = &programName.String
+		}
 		sessions = append(sessions, session)
 	}
 
 	return sessions, rows.Err()
 }
 
-func (r *SessionRepository) Complete(ctx context.Context, sessionID uuid.UUID, totalDuration int, completionRate float64, notes string) error {
-	query := `
-		UPDATE practice_sessions
-		SET completed_at = CURRENT_TIMESTAMP, total_duration_seconds = $1, completion_rate = $2, notes = $3
-		WHERE id = $4
-	`
-	_, err := r.db.Exec(ctx, query, totalDuration, completionRate, notes, sessionID)
+func (r *SessionRepository) Complete(ctx context.Context, sessionID uuid.UUID, totalDuration int, completionRate float64, notes string, completedAt *time.Time) error {
+	var query string
+	var err error
+
+	if completedAt != nil {
+		// Use the provided completion time
+		query = `
+			UPDATE practice_sessions
+			SET completed_at = $1, total_duration_seconds = $2, completion_rate = $3, notes = $4
+			WHERE id = $5
+		`
+		_, err = r.db.Exec(ctx, query, completedAt, totalDuration, completionRate, notes, sessionID)
+	} else {
+		// Use current timestamp
+		query = `
+			UPDATE practice_sessions
+			SET completed_at = CURRENT_TIMESTAMP, total_duration_seconds = $1, completion_rate = $2, notes = $3
+			WHERE id = $4
+		`
+		_, err = r.db.Exec(ctx, query, totalDuration, completionRate, notes, sessionID)
+	}
+
 	return err
 }
 
@@ -231,4 +253,16 @@ func (r *SessionRepository) GetStats(ctx context.Context, userID uuid.UUID) (*mo
 	}
 
 	return &stats, nil
+}
+
+func (r *SessionRepository) Delete(ctx context.Context, sessionID uuid.UUID) error {
+	// Delete exercise logs first (foreign key constraint)
+	_, err := r.db.Exec(ctx, `DELETE FROM exercise_logs WHERE session_id = $1`, sessionID)
+	if err != nil {
+		return err
+	}
+
+	// Delete session
+	_, err = r.db.Exec(ctx, `DELETE FROM practice_sessions WHERE id = $1`, sessionID)
+	return err
 }

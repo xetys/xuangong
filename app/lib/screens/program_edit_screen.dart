@@ -24,6 +24,7 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
   late TextEditingController _tagController;
+  late TextEditingController _repetitionsPlannedController;
   late List<Exercise> _exercises;
   late List<String> _tags;
   late bool _isTemplate;
@@ -36,6 +37,9 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
     _nameController = TextEditingController(text: widget.program?.name ?? '');
     _descriptionController = TextEditingController(text: widget.program?.description ?? '');
     _tagController = TextEditingController();
+    _repetitionsPlannedController = TextEditingController(
+      text: widget.program?.repetitionsPlanned?.toString() ?? '',
+    );
     _exercises = widget.program?.exercises.toList() ?? [];
     _tags = widget.program?.tags.toList() ?? [];
     _isTemplate = widget.program?.isTemplate ?? false;
@@ -47,6 +51,7 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
     _nameController.dispose();
     _descriptionController.dispose();
     _tagController.dispose();
+    _repetitionsPlannedController.dispose();
     super.dispose();
   }
 
@@ -136,6 +141,10 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
         );
       }
 
+      final repetitionsPlanned = _repetitionsPlannedController.text.isNotEmpty
+          ? int.tryParse(_repetitionsPlannedController.text)
+          : null;
+
       final program = Program(
         id: widget.program?.id ?? '',
         name: _nameController.text,
@@ -144,6 +153,7 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
         isTemplate: _isTemplate,
         isPublic: _isPublic,
         tags: _tags,
+        repetitionsPlanned: repetitionsPlanned,
       );
 
       // Create or update program with exercises
@@ -282,6 +292,30 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
                             },
                           ),
                           const SizedBox(height: 16),
+                          // Repetitions planned field (only for non-template programs)
+                          if (!_isTemplate) ...[
+                            TextFormField(
+                              controller: _repetitionsPlannedController,
+                              decoration: const InputDecoration(
+                                labelText: 'Repetitions Planned (optional)',
+                                hintText: 'How many times to complete this program',
+                                border: OutlineInputBorder(),
+                              ),
+                              keyboardType: TextInputType.number,
+                              validator: (value) {
+                                if (value != null && value.isNotEmpty) {
+                                  if (int.tryParse(value) == null) {
+                                    return 'Please enter a valid number';
+                                  }
+                                  if (int.parse(value) < 1) {
+                                    return 'Must be at least 1';
+                                  }
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                          ],
                           // Tags management
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -632,7 +666,7 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
       text: widget.exercise?.repetitions?.toString() ?? '10',
     );
     _restController = TextEditingController(
-      text: widget.exercise?.restAfterSeconds.toString() ?? '30',
+      text: widget.exercise?.restAfterSeconds.toString() ?? '',
     );
     _selectedType = widget.exercise?.type ?? ExerciseType.timed;
     _hasSides = widget.exercise?.hasSides ?? false;
@@ -1054,12 +1088,15 @@ class _ImportProgramDialogState extends State<_ImportProgramDialog> {
                                   children: [
                                     Row(
                                       children: [
-                                        Text(
-                                          program.name,
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: isSelected ? burgundy : Colors.black,
+                                        Flexible(
+                                          child: Text(
+                                            program.name,
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: isSelected ? burgundy : Colors.black,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
                                         if (item.isTemplate) ...[
@@ -1139,7 +1176,7 @@ class _ImportProgramDialogState extends State<_ImportProgramDialog> {
                 child: Text(
                   _selectedProgram == null
                       ? 'Select a program to import'
-                      : 'Import "${_selectedProgram!.name}"',
+                      : 'Import',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,

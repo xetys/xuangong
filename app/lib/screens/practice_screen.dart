@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/program.dart';
 import '../models/exercise.dart';
+import '../services/audio_service.dart';
 import 'session_complete_screen.dart';
 
 class PracticeScreen extends StatefulWidget {
@@ -14,6 +15,8 @@ class PracticeScreen extends StatefulWidget {
 }
 
 class _PracticeScreenState extends State<PracticeScreen> {
+  final AudioService _audioService = AudioService();
+
   int currentExerciseIndex = 0;
   int remainingSeconds = 0;
   Timer? _timer;
@@ -21,11 +24,17 @@ class _PracticeScreenState extends State<PracticeScreen> {
   bool isResting = false;
   bool isWuWeiMode = false;
   PracticePhase phase = PracticePhase.countdown;
-  int countdownValue = 3;
+  int countdownValue = 10;
+  bool _hasShownInitialCountdown = false;
+  int _initialExerciseDuration = 0;
+  bool _halfTimeSoundPlayed = false;
 
   @override
   void initState() {
     super.initState();
+    // Initialize audio service
+    _audioService.initialize();
+
     // Check if program has exercises
     if (widget.program.exercises.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -49,17 +58,30 @@ class _PracticeScreenState extends State<PracticeScreen> {
   }
 
   void _startCountdown() {
+    // Only show the 10-second countdown before the first exercise
+    if (_hasShownInitialCountdown) {
+      _startExercise();
+      return;
+    }
+
     setState(() {
       phase = PracticePhase.countdown;
-      countdownValue = 3;
+      countdownValue = 10;
     });
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         if (countdownValue > 1) {
           countdownValue--;
+          // Play last_two at countdown = 2
+          if (countdownValue == 2) {
+            _audioService.playLastTwo();
+          }
         } else {
+          // Countdown = 0, start exercise and play start sound
           _timer?.cancel();
+          _hasShownInitialCountdown = true;
+          _audioService.playStart();
           _startExercise();
         }
       });
@@ -68,19 +90,56 @@ class _PracticeScreenState extends State<PracticeScreen> {
 
   void _startExercise() {
     final exercise = widget.program.exercises[currentExerciseIndex];
+
+    // For repetition-only exercises, don't start a timer
+    if (exercise.type == ExerciseType.repetition) {
+      setState(() {
+        phase = PracticePhase.exercise;
+        isPaused = false;
+      });
+
+      // If not first exercise, play start sound
+      if (_hasShownInitialCountdown && currentExerciseIndex > 0) {
+        _audioService.playStart();
+      }
+      return;
+    }
+
+    final duration = exercise.durationSeconds ?? 60; // Default 60s for mock
+
     setState(() {
       phase = PracticePhase.exercise;
-      remainingSeconds = exercise.durationSeconds ?? 60; // Default 60s for mock
+      remainingSeconds = duration;
       isPaused = false;
+      _initialExerciseDuration = duration;
+      _halfTimeSoundPlayed = false;
     });
+
+    // If not first exercise, play start sound
+    if (_hasShownInitialCountdown && currentExerciseIndex > 0) {
+      _audioService.playStart();
+    }
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!isPaused) {
         setState(() {
           if (remainingSeconds > 0) {
+            // Play half-time sound one second earlier (at half + 1)
+            final halfTime = (_initialExerciseDuration / 2).round();
+            if (!_halfTimeSoundPlayed && remainingSeconds == halfTime + 1) {
+              _audioService.playHalf();
+              _halfTimeSoundPlayed = true;
+            }
+
+            // Play last 2 seconds sound
+            if (remainingSeconds == 2) {
+              _audioService.playLastTwo();
+            }
+
             remainingSeconds--;
           } else {
             _timer?.cancel();
+            // Don't play sound here - just move to rest or next exercise
             _startRest();
           }
         });
@@ -120,12 +179,25 @@ class _PracticeScreenState extends State<PracticeScreen> {
       });
       _startCountdown();
     } else {
+      // Session completed naturally - play longgong
+      _audioService.playLongGong();
       _completeSession();
     }
   }
 
   void _skipExercise() {
     _timer?.cancel();
+
+    // If in countdown phase, skip to exercise start
+    if (phase == PracticePhase.countdown) {
+      _hasShownInitialCountdown = true;
+      _audioService.playStart();
+      _startExercise();
+      return;
+    }
+
+    // Otherwise skip to next exercise
+    _audioService.playStart();
     _nextExercise();
   }
 
@@ -142,6 +214,9 @@ class _PracticeScreenState extends State<PracticeScreen> {
   }
 
   void _completeSession() {
+    // Play longgong when manually completing session
+    _audioService.playLongGong();
+
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => SessionCompleteScreen(program: widget.program),
@@ -230,13 +305,14 @@ class _PracticeScreenState extends State<PracticeScreen> {
                     'Skip',
                     () => _skipExercise(),
                   ),
-                  if (phase == PracticePhase.exercise)
+                  // Only show pause and Wu Wei for timed exercises
+                  if (phase == PracticePhase.exercise && exercise.type != ExerciseType.repetition)
                     _buildControlButton(
                       isPaused ? Icons.play_arrow : Icons.pause,
                       isPaused ? 'Resume' : 'Pause',
                       () => _togglePause(),
                     ),
-                  if (phase == PracticePhase.exercise)
+                  if (phase == PracticePhase.exercise && exercise.type != ExerciseType.repetition)
                     _buildControlButton(
                       isWuWeiMode ? Icons.visibility : Icons.visibility_off,
                       'Wu Wei',
@@ -328,6 +404,65 @@ class _PracticeScreenState extends State<PracticeScreen> {
       );
     } else {
       // Exercise phase
+      // For repetition-only exercises, show a "Done" button
+      if (exercise.type == ExerciseType.repetition) {
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              exercise.name,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w600,
+                color: burgundy,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (exercise.repetitions != null)
+              Text(
+                '${exercise.repetitions} repetitions',
+                style: TextStyle(
+                  fontSize: 20,
+                  color: burgundy.withValues(alpha: 0.7),
+                ),
+              ),
+            const SizedBox(height: 48),
+            ElevatedButton.icon(
+              onPressed: () {
+                _timer?.cancel();
+                _startRest();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: burgundy,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              icon: const Icon(Icons.check_circle, size: 32),
+              label: const Text(
+                'Done',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Tap when finished',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        );
+      }
+
+      // For timed or combined exercises, show timer
       final minutes = remainingSeconds ~/ 60;
       final seconds = remainingSeconds % 60;
       final timeDisplay = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';

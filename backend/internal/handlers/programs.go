@@ -117,12 +117,13 @@ func (h *ProgramHandler) CreateProgram(c *gin.Context) {
 	}
 
 	program := &models.Program{
-		Name:        req.Name,
-		Description: req.Description,
-		IsTemplate:  req.IsTemplate,
-		IsPublic:    req.IsPublic,
-		Tags:        req.Tags,
-		Metadata:    req.Metadata,
+		Name:                req.Name,
+		Description:         req.Description,
+		IsTemplate:          req.IsTemplate,
+		IsPublic:            req.IsPublic,
+		Tags:                req.Tags,
+		Metadata:            req.Metadata,
+		RepetitionsPlanned:  req.RepetitionsPlanned,
 	}
 
 	// Convert ExerciseRequest to Exercise models
@@ -205,6 +206,9 @@ func (h *ProgramHandler) UpdateProgram(c *gin.Context) {
 	if req.Metadata != nil {
 		program.Metadata = req.Metadata
 	}
+	if req.RepetitionsPlanned != nil {
+		program.RepetitionsPlanned = req.RepetitionsPlanned
+	}
 
 	// Convert ExerciseRequest to Exercise models
 	exercises := make([]models.Exercise, len(req.Exercises))
@@ -252,7 +256,14 @@ func (h *ProgramHandler) DeleteProgram(c *gin.Context) {
 		return
 	}
 
-	if err := h.programService.Delete(c.Request.Context(), id); err != nil {
+	// Get user ID for authorization check
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	if err := h.programService.Delete(c.Request.Context(), id, userID); err != nil {
 		respondWithAppError(c, err)
 		return
 	}

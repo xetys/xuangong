@@ -10,6 +10,8 @@ class Program {
   final bool isPublic;
   final String? createdBy;
   final String? creatorName;
+  final int? repetitionsPlanned;
+  final int? repetitionsCompleted;
   final Map<String, dynamic>? metadata;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -24,6 +26,8 @@ class Program {
     this.isPublic = false,
     this.createdBy,
     this.creatorName,
+    this.repetitionsPlanned,
+    this.repetitionsCompleted,
     this.metadata,
     this.createdAt,
     this.updatedAt,
@@ -45,6 +49,8 @@ class Program {
       isPublic: programData['is_public'] as bool? ?? false,
       createdBy: programData['created_by'] as String?,
       creatorName: programData['creator_name'] as String?,
+      repetitionsPlanned: programData['repetitions_planned'] as int?,
+      repetitionsCompleted: programData['repetitions_completed'] as int?,
       metadata: programData['metadata'] as Map<String, dynamic>?,
       createdAt: programData['created_at'] != null
           ? DateTime.parse(programData['created_at'] as String)
@@ -63,6 +69,7 @@ class Program {
       'tags': tags,
       'is_template': isTemplate,
       'is_public': isPublic,
+      if (repetitionsPlanned != null) 'repetitions_planned': repetitionsPlanned,
       'metadata': metadata,
       'exercises': exercises.map((e) => e.toJson()).toList(),
     };

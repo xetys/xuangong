@@ -19,8 +19,8 @@ func NewProgramRepository(db *pgxpool.Pool) *ProgramRepository {
 
 func (r *ProgramRepository) Create(ctx context.Context, program *models.Program) error {
 	query := `
-		INSERT INTO programs (name, description, created_by, is_template, is_public, tags, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO programs (name, description, created_by, is_template, is_public, tags, metadata, repetitions_planned)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id, created_at, updated_at
 	`
 	return r.db.QueryRow(ctx, query,
@@ -31,13 +31,14 @@ func (r *ProgramRepository) Create(ctx context.Context, program *models.Program)
 		program.IsPublic,
 		program.Tags,
 		program.Metadata,
+		program.RepetitionsPlanned,
 	).Scan(&program.ID, &program.CreatedAt, &program.UpdatedAt)
 }
 
 func (r *ProgramRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Program, error) {
 	var program models.Program
 	query := `
-		SELECT id, name, description, created_by, is_template, is_public, tags, metadata, created_at, updated_at
+		SELECT id, name, description, created_by, is_template, is_public, repetitions_planned, repetitions_completed, tags, metadata, created_at, updated_at
 		FROM programs
 		WHERE id = $1
 	`
@@ -48,6 +49,8 @@ func (r *ProgramRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.
 		&program.CreatedBy,
 		&program.IsTemplate,
 		&program.IsPublic,
+		&program.RepetitionsPlanned,
+		&program.RepetitionsCompleted,
 		&program.Tags,
 		&program.Metadata,
 		&program.CreatedAt,
@@ -65,7 +68,7 @@ func (r *ProgramRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.
 func (r *ProgramRepository) List(ctx context.Context, isTemplate, isPublic *bool, limit, offset int) ([]models.Program, error) {
 	query := `
 		SELECT p.id, p.name, p.description, p.created_by, u.full_name as creator_name,
-		       p.is_template, p.is_public, p.tags, p.metadata, p.created_at, p.updated_at
+		       p.is_template, p.is_public, p.repetitions_planned, p.repetitions_completed, p.tags, p.metadata, p.created_at, p.updated_at
 		FROM programs p
 		LEFT JOIN users u ON p.created_by = u.id
 		WHERE ($1::boolean IS NULL OR p.is_template = $1)
@@ -90,6 +93,8 @@ func (r *ProgramRepository) List(ctx context.Context, isTemplate, isPublic *bool
 			&program.CreatorName,
 			&program.IsTemplate,
 			&program.IsPublic,
+			&program.RepetitionsPlanned,
+			&program.RepetitionsCompleted,
 			&program.Tags,
 			&program.Metadata,
 			&program.CreatedAt,
@@ -107,8 +112,8 @@ func (r *ProgramRepository) List(ctx context.Context, isTemplate, isPublic *bool
 func (r *ProgramRepository) Update(ctx context.Context, program *models.Program) error {
 	query := `
 		UPDATE programs
-		SET name = $1, description = $2, is_template = $3, is_public = $4, tags = $5, metadata = $6
-		WHERE id = $7
+		SET name = $1, description = $2, is_template = $3, is_public = $4, tags = $5, metadata = $6, repetitions_planned = $7
+		WHERE id = $8
 		RETURNING updated_at
 	`
 	return r.db.QueryRow(ctx, query,
@@ -118,6 +123,7 @@ func (r *ProgramRepository) Update(ctx context.Context, program *models.Program)
 		program.IsPublic,
 		program.Tags,
 		program.Metadata,
+		program.RepetitionsPlanned,
 		program.ID,
 	).Scan(&program.UpdatedAt)
 }
@@ -191,7 +197,7 @@ func (r *ProgramRepository) UpdateUserProgramSettings(ctx context.Context, userI
 func (r *ProgramRepository) GetUserProgramsWithDetails(ctx context.Context, userID uuid.UUID, activeOnly bool) ([]models.Program, error) {
 	query := `
 		SELECT DISTINCT p.id, p.name, p.description, p.created_by, u.full_name as creator_name,
-		       p.is_template, p.is_public, p.tags, p.metadata, p.created_at, p.updated_at
+		       p.is_template, p.is_public, p.repetitions_planned, p.repetitions_completed, p.tags, p.metadata, p.created_at, p.updated_at
 		FROM programs p
 		LEFT JOIN user_programs up ON p.id = up.program_id AND up.user_id = $1
 		LEFT JOIN users u ON p.created_by = u.id
@@ -217,6 +223,8 @@ func (r *ProgramRepository) GetUserProgramsWithDetails(ctx context.Context, user
 			&program.CreatorName,
 			&program.IsTemplate,
 			&program.IsPublic,
+			&program.RepetitionsPlanned,
+			&program.RepetitionsCompleted,
 			&program.Tags,
 			&program.Metadata,
 			&program.CreatedAt,
@@ -229,4 +237,20 @@ func (r *ProgramRepository) GetUserProgramsWithDetails(ctx context.Context, user
 	}
 
 	return programs, rows.Err()
+}
+
+// UpdateRepetitionsCompleted updates the repetitions_completed count for a program
+// by counting the number of completed sessions for that program
+func (r *ProgramRepository) UpdateRepetitionsCompleted(ctx context.Context, programID uuid.UUID) error {
+	query := `
+		UPDATE programs
+		SET repetitions_completed = (
+			SELECT COUNT(*)
+			FROM practice_sessions
+			WHERE program_id = $1 AND completed_at IS NOT NULL
+		)
+		WHERE id = $1
+	`
+	_, err := r.db.Exec(ctx, query, programID)
+	return err
 }

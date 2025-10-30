@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/program.dart';
 import '../widgets/xg_button.dart';
+import 'session_edit_screen.dart';
 
 class SessionCompleteScreen extends StatelessWidget {
   final Program program;
@@ -107,10 +108,39 @@ class SessionCompleteScreen extends StatelessWidget {
 
               // Actions
               XGButton(
-                text: 'Back to Home',
-                onPressed: () {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
+                text: 'Save Session',
+                onPressed: () async {
+                  final result = await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => SessionEditScreen(
+                        initialProgramId: program.id,
+                      ),
+                    ),
+                  );
+
+                  // If session was saved, pop back to Program Detail with result
+                  if (result == true && context.mounted) {
+                    Navigator.of(context).pop(true);
+                  }
                 },
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.of(context).pop(false);
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: burgundy,
+                  side: BorderSide(color: burgundy),
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'Skip and Return Home',
+                  style: TextStyle(fontSize: 16),
+                ),
               ),
               const SizedBox(height: 12),
               TextButton(
