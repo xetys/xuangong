@@ -116,14 +116,30 @@ func (h *ProgramHandler) CreateProgram(c *gin.Context) {
 		return
 	}
 
+	// Determine who should own the program
+	ownedBy := userID
+	if req.OwnedByUserID != nil {
+		// Admin is creating a program for another user
+		if !middleware.IsAdmin(c) {
+			respondWithError(c, appErrors.NewAuthorizationError("Only admins can create programs for other users"))
+			return
+		}
+		parsedOwnerID, err := uuid.Parse(*req.OwnedByUserID)
+		if err != nil {
+			respondWithError(c, appErrors.NewBadRequestError("Invalid owned_by_user_id"))
+			return
+		}
+		ownedBy = parsedOwnerID
+	}
+
 	program := &models.Program{
-		Name:                req.Name,
-		Description:         req.Description,
-		IsTemplate:          req.IsTemplate,
-		IsPublic:            req.IsPublic,
-		Tags:                req.Tags,
-		Metadata:            req.Metadata,
-		RepetitionsPlanned:  req.RepetitionsPlanned,
+		Name:               req.Name,
+		Description:        req.Description,
+		IsTemplate:         req.IsTemplate,
+		IsPublic:           req.IsPublic,
+		Tags:               req.Tags,
+		Metadata:           req.Metadata,
+		RepetitionsPlanned: req.RepetitionsPlanned,
 	}
 
 	// Convert ExerciseRequest to Exercise models
@@ -143,9 +159,17 @@ func (h *ProgramHandler) CreateProgram(c *gin.Context) {
 		}
 	}
 
-	if err := h.programService.Create(c.Request.Context(), program, exercises, userID); err != nil{
+	if err := h.programService.Create(c.Request.Context(), program, exercises, ownedBy); err != nil {
 		respondWithAppError(c, err)
 		return
+	}
+
+	// If created for another user, auto-assign to them
+	if req.OwnedByUserID != nil {
+		if err := h.programService.AssignToUsers(c.Request.Context(), program.ID, userID, []uuid.UUID{ownedBy}); err != nil {
+			respondWithAppError(c, err)
+			return
+		}
 	}
 
 	c.JSON(http.StatusCreated, program)

@@ -10,7 +10,7 @@ type Program struct {
 	ID                   uuid.UUID              `json:"id" db:"id"`
 	Name                 string                 `json:"name" db:"name"`
 	Description          string                 `json:"description" db:"description"`
-	CreatedBy            *uuid.UUID             `json:"created_by" db:"created_by"`
+	OwnedBy              *uuid.UUID             `json:"owned_by" db:"owned_by"`
 	CreatorName          *string                `json:"creator_name" db:"creator_name"`
 	IsTemplate           bool                   `json:"is_template" db:"is_template"`
 	IsPublic             bool                   `json:"is_public" db:"is_public"`

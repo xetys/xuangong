@@ -5,6 +5,8 @@ class PracticeSession {
   final String? programName;
   final DateTime startedAt;
   final DateTime? completedAt;
+  final int? totalDurationSeconds;
+  final double? completionRate;
   final String? notes;
 
   PracticeSession({
@@ -14,6 +16,8 @@ class PracticeSession {
     this.programName,
     required this.startedAt,
     this.completedAt,
+    this.totalDurationSeconds,
+    this.completionRate,
     this.notes,
   });
 
@@ -27,6 +31,8 @@ class PracticeSession {
       completedAt: json['completed_at'] != null
           ? DateTime.parse(json['completed_at'])
           : null,
+      totalDurationSeconds: json['total_duration_seconds'],
+      completionRate: json['completion_rate']?.toDouble(),
       notes: json['notes'],
     );
   }
@@ -39,6 +45,8 @@ class PracticeSession {
       'program_name': programName,
       'started_at': startedAt.toIso8601String(),
       'completed_at': completedAt?.toIso8601String(),
+      'total_duration_seconds': totalDurationSeconds,
+      'completion_rate': completionRate,
       'notes': notes,
     };
   }

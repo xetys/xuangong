@@ -59,9 +59,13 @@ class ProgramService {
   }
 
   // Create new program
-  Future<Program> createProgram(Program program) async {
+  Future<Program> createProgram(Program program, {String? ownedByUserId}) async {
     try {
       final payload = program.toJson();
+      // If ownedByUserId is provided, add it to the payload
+      if (ownedByUserId != null) {
+        payload['owned_by_user_id'] = ownedByUserId;
+      }
       print('Creating program with payload: $payload');
       final response = await _apiClient.post(
         '${ApiConfig.apiBase}/programs',

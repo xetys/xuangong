@@ -5,13 +5,15 @@ import '../models/user.dart';
 import '../services/program_service.dart';
 
 class ProgramEditScreen extends StatefulWidget {
-  final User user;
+  final User? user; // Optional - needed for regular flow
   final Program? program; // null for new program
+  final String? ownedByUserId; // Optional - admin creating for student
 
   const ProgramEditScreen({
     Key? key,
-    required this.user,
+    this.user,
     this.program,
+    this.ownedByUserId,
   }) : super(key: key);
 
   @override
@@ -159,7 +161,7 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
       // Create or update program with exercises
       if (widget.program == null) {
         // Create new program with exercises
-        await _programService.createProgram(program);
+        await _programService.createProgram(program, ownedByUserId: widget.ownedByUserId);
       } else {
         // Update existing program with exercises
         await _programService.updateProgram(widget.program!.id, program);
@@ -195,7 +197,7 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
   @override
   Widget build(BuildContext context) {
     const burgundy = Color(0xFF9B1C1C);
-    final isAdmin = !widget.user.isStudent;
+    final isAdmin = widget.user?.isAdmin ?? false;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,

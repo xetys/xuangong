@@ -49,14 +49,16 @@ func main() {
 	authService := services.NewAuthService(userRepo, cfg)
 	programService := services.NewProgramService(programRepo, exerciseRepo)
 	sessionService := services.NewSessionService(sessionRepo, programRepo)
+	userService := services.NewUserService(userRepo, programRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	programHandler := handlers.NewProgramHandler(programService)
 	sessionHandler := handlers.NewSessionHandler(sessionService)
+	userHandler := handlers.NewUserHandler(userService)
 
 	// Setup router
-	router := setupRouter(cfg, authService, authHandler, programHandler, sessionHandler)
+	router := setupRouter(cfg, authService, authHandler, programHandler, sessionHandler, userHandler)
 
 	// Suppress unused variable warnings
 	_ = exerciseRepo
@@ -103,6 +105,7 @@ func setupRouter(
 	authHandler *handlers.AuthHandler,
 	programHandler *handlers.ProgramHandler,
 	sessionHandler *handlers.SessionHandler,
+	userHandler *handlers.UserHandler,
 ) *gin.Engine {
 	// Set gin mode
 	if cfg.Server.Env == "production" {
@@ -148,8 +151,8 @@ func setupRouter(
 		{
 			programs.GET("", programHandler.ListPrograms)
 			programs.GET("/:id", programHandler.GetProgram)
-			programs.POST("", programHandler.CreateProgram)      // All users can create programs
-			programs.PUT("/:id", programHandler.UpdateProgram)   // Authorization check in handler
+			programs.POST("", programHandler.CreateProgram)       // All users can create programs
+			programs.PUT("/:id", programHandler.UpdateProgram)    // Authorization check in handler
 			programs.DELETE("/:id", programHandler.DeleteProgram) // Authorization check needed
 
 			// Admin only
@@ -173,6 +176,18 @@ func setupRouter(
 			sessions.PUT("/:id/exercise/:exercise_id", sessionHandler.LogExercise)
 			sessions.PUT("/:id/complete", sessionHandler.CompleteSession)
 			sessions.DELETE("/:id", sessionHandler.DeleteSession)
+		}
+
+		// Users (admin only)
+		users := protected.Group("/users")
+		users.Use(middleware.RequireRole("admin"))
+		{
+			users.GET("", userHandler.ListUsers)
+			users.GET("/:id", userHandler.GetUser)
+			users.POST("", userHandler.CreateUser)
+			users.PUT("/:id", userHandler.UpdateUser)
+			users.DELETE("/:id", userHandler.DeleteUser)
+			users.GET("/:id/programs", userHandler.GetUserPrograms)
 		}
 
 		// TODO: Add submissions, feedback, exercises endpoints

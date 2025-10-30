@@ -7,6 +7,9 @@ import '../widgets/practice_history_widget.dart';
 import 'login_screen.dart';
 import 'program_detail_screen.dart';
 import 'program_edit_screen.dart';
+import 'account_screen.dart';
+import 'settings_screen.dart';
+import 'students_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final User user;
@@ -97,6 +100,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        iconTheme: IconThemeData(color: burgundy),
         title: Text(
           '玄功',
           style: TextStyle(
@@ -106,13 +110,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             letterSpacing: 4,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: burgundy),
-            onPressed: () => _handleLogout(context),
-          ),
-        ],
       ),
+      drawer: _buildDrawer(context, burgundy),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -475,6 +474,112 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context, Color burgundy) {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration: BoxDecoration(
+              color: burgundy,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                const Icon(
+                  Icons.account_circle,
+                  size: 64,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  widget.user.fullName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.user.email,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.account_circle_outlined),
+            title: const Text('Account'),
+            onTap: () {
+              Navigator.pop(context); // Close drawer
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const AccountScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.settings_outlined),
+            title: const Text('Settings'),
+            onTap: () {
+              Navigator.pop(context); // Close drawer
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const SettingsScreen(),
+                ),
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Logout'),
+            onTap: () {
+              Navigator.pop(context); // Close drawer
+              _handleLogout(context);
+            },
+          ),
+          if (widget.user.isAdmin) ...[
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Text(
+                'ADMINISTRATION',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade600,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.people_outlined, color: burgundy),
+              title: Text(
+                'Students',
+                style: TextStyle(color: burgundy, fontWeight: FontWeight.w500),
+              ),
+              onTap: () {
+                Navigator.pop(context); // Close drawer
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const StudentsScreen(),
+                  ),
+                );
+              },
+            ),
+          ],
+        ],
       ),
     );
   }

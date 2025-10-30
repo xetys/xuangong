@@ -747,9 +747,9 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
   bool _canEdit() {
     if (widget.user == null) return false;
 
-    // User can edit if they created the program
-    if (widget.program.createdBy != null &&
-        widget.program.createdBy == widget.user!.id) {
+    // User can edit if they own the program
+    if (widget.program.ownedBy != null &&
+        widget.program.ownedBy == widget.user!.id) {
       return true;
     }
 

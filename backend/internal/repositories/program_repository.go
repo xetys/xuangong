@@ -19,14 +19,14 @@ func NewProgramRepository(db *pgxpool.Pool) *ProgramRepository {
 
 func (r *ProgramRepository) Create(ctx context.Context, program *models.Program) error {
 	query := `
-		INSERT INTO programs (name, description, created_by, is_template, is_public, tags, metadata, repetitions_planned)
+		INSERT INTO programs (name, description, owned_by, is_template, is_public, tags, metadata, repetitions_planned)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id, created_at, updated_at
 	`
 	return r.db.QueryRow(ctx, query,
 		program.Name,
 		program.Description,
-		program.CreatedBy,
+		program.OwnedBy,
 		program.IsTemplate,
 		program.IsPublic,
 		program.Tags,
@@ -38,7 +38,7 @@ func (r *ProgramRepository) Create(ctx context.Context, program *models.Program)
 func (r *ProgramRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Program, error) {
 	var program models.Program
 	query := `
-		SELECT id, name, description, created_by, is_template, is_public, repetitions_planned, repetitions_completed, tags, metadata, created_at, updated_at
+		SELECT id, name, description, owned_by, is_template, is_public, repetitions_planned, repetitions_completed, tags, metadata, created_at, updated_at
 		FROM programs
 		WHERE id = $1
 	`
@@ -46,7 +46,7 @@ func (r *ProgramRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.
 		&program.ID,
 		&program.Name,
 		&program.Description,
-		&program.CreatedBy,
+		&program.OwnedBy,
 		&program.IsTemplate,
 		&program.IsPublic,
 		&program.RepetitionsPlanned,
@@ -67,10 +67,10 @@ func (r *ProgramRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.
 
 func (r *ProgramRepository) List(ctx context.Context, isTemplate, isPublic *bool, limit, offset int) ([]models.Program, error) {
 	query := `
-		SELECT p.id, p.name, p.description, p.created_by, u.full_name as creator_name,
+		SELECT p.id, p.name, p.description, p.owned_by, u.full_name as creator_name,
 		       p.is_template, p.is_public, p.repetitions_planned, p.repetitions_completed, p.tags, p.metadata, p.created_at, p.updated_at
 		FROM programs p
-		LEFT JOIN users u ON p.created_by = u.id
+		LEFT JOIN users u ON p.owned_by = u.id
 		WHERE ($1::boolean IS NULL OR p.is_template = $1)
 		AND ($2::boolean IS NULL OR p.is_public = $2)
 		ORDER BY p.created_at DESC
@@ -89,7 +89,7 @@ func (r *ProgramRepository) List(ctx context.Context, isTemplate, isPublic *bool
 			&program.ID,
 			&program.Name,
 			&program.Description,
-			&program.CreatedBy,
+			&program.OwnedBy,
 			&program.CreatorName,
 			&program.IsTemplate,
 			&program.IsPublic,
@@ -196,13 +196,13 @@ func (r *ProgramRepository) UpdateUserProgramSettings(ctx context.Context, userI
 
 func (r *ProgramRepository) GetUserProgramsWithDetails(ctx context.Context, userID uuid.UUID, activeOnly bool) ([]models.Program, error) {
 	query := `
-		SELECT DISTINCT p.id, p.name, p.description, p.created_by, u.full_name as creator_name,
+		SELECT DISTINCT p.id, p.name, p.description, p.owned_by, u.full_name as creator_name,
 		       p.is_template, p.is_public, p.repetitions_planned, p.repetitions_completed, p.tags, p.metadata, p.created_at, p.updated_at
 		FROM programs p
 		LEFT JOIN user_programs up ON p.id = up.program_id AND up.user_id = $1
-		LEFT JOIN users u ON p.created_by = u.id
+		LEFT JOIN users u ON p.owned_by = u.id
 		WHERE ((up.user_id = $1 AND ($2 = false OR up.is_active = true))
-		   OR (p.created_by = $1))
+		   OR (p.owned_by = $1))
 		   AND p.is_template = false
 		ORDER BY p.created_at DESC
 	`
@@ -219,7 +219,7 @@ func (r *ProgramRepository) GetUserProgramsWithDetails(ctx context.Context, user
 			&program.ID,
 			&program.Name,
 			&program.Description,
-			&program.CreatedBy,
+			&program.OwnedBy,
 			&program.CreatorName,
 			&program.IsTemplate,
 			&program.IsPublic,

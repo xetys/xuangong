@@ -21,8 +21,8 @@ func NewProgramService(programRepo *repositories.ProgramRepository, exerciseRepo
 	}
 }
 
-func (s *ProgramService) Create(ctx context.Context, program *models.Program, exercises []models.Exercise, createdBy uuid.UUID) error {
-	program.CreatedBy = &createdBy
+func (s *ProgramService) Create(ctx context.Context, program *models.Program, exercises []models.Exercise, ownedBy uuid.UUID) error {
+	program.OwnedBy = &ownedBy
 	if err := s.programRepo.Create(ctx, program); err != nil {
 		return appErrors.NewInternalError("Failed to create program").WithError(err)
 	}
@@ -93,8 +93,8 @@ func (s *ProgramService) Update(ctx context.Context, id uuid.UUID, updates *mode
 		return appErrors.NewNotFoundError("Program")
 	}
 
-	// Authorization check: only the creator can update their program
-	if existing.CreatedBy != nil && *existing.CreatedBy != userID {
+	// Authorization check: only the owner can update their program
+	if existing.OwnedBy != nil && *existing.OwnedBy != userID {
 		return appErrors.NewAuthorizationError("You don't have permission to edit this program")
 	}
 
@@ -160,8 +160,8 @@ func (s *ProgramService) Delete(ctx context.Context, id uuid.UUID, userID uuid.U
 		return appErrors.NewNotFoundError("Program")
 	}
 
-	// Authorization check: only the creator can delete their program
-	if existing.CreatedBy != nil && *existing.CreatedBy != userID {
+	// Authorization check: only the owner can delete their program
+	if existing.OwnedBy != nil && *existing.OwnedBy != userID {
 		return appErrors.NewAuthorizationError("You don't have permission to delete this program")
 	}
 

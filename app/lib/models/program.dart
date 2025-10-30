@@ -8,7 +8,7 @@ class Program {
   final List<String> tags;
   final bool isTemplate;
   final bool isPublic;
-  final String? createdBy;
+  final String? ownedBy;
   final String? creatorName;
   final int? repetitionsPlanned;
   final int? repetitionsCompleted;
@@ -24,7 +24,7 @@ class Program {
     this.tags = const [],
     this.isTemplate = false,
     this.isPublic = false,
-    this.createdBy,
+    this.ownedBy,
     this.creatorName,
     this.repetitionsPlanned,
     this.repetitionsCompleted,
@@ -47,7 +47,7 @@ class Program {
       tags: (programData['tags'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
       isTemplate: programData['is_template'] as bool? ?? false,
       isPublic: programData['is_public'] as bool? ?? false,
-      createdBy: programData['created_by'] as String?,
+      ownedBy: programData['owned_by'] as String?,
       creatorName: programData['creator_name'] as String?,
       repetitionsPlanned: programData['repetitions_planned'] as int?,
       repetitionsCompleted: programData['repetitions_completed'] as int?,

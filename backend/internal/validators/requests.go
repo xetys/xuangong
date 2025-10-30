@@ -11,6 +11,21 @@ type RegisterRequest struct {
 	FullName string `json:"full_name" validate:"required,min=2"`
 }
 
+// User management requests (admin only)
+type CreateUserRequest struct {
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=8"`
+	FullName string `json:"full_name" validate:"required,min=2"`
+	Role     string `json:"role" validate:"omitempty,oneof=admin student"`
+}
+
+type UpdateUserRequest struct {
+	Email    *string `json:"email" validate:"omitempty,email"`
+	Password *string `json:"password" validate:"omitempty,min=8"`
+	FullName *string `json:"full_name" validate:"omitempty,min=2"`
+	IsActive *bool   `json:"is_active"`
+}
+
 type LoginRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required"`
@@ -22,25 +37,26 @@ type RefreshTokenRequest struct {
 
 // Program requests
 type CreateProgramRequest struct {
-	Name                string                 `json:"name" validate:"required,min=3,max=255"`
-	Description         string                 `json:"description"`
-	IsTemplate          bool                   `json:"is_template"`
-	IsPublic            bool                   `json:"is_public"`
-	Tags                []string               `json:"tags"`
-	Metadata            map[string]interface{} `json:"metadata"`
-	RepetitionsPlanned  *int                   `json:"repetitions_planned" validate:"omitempty,gte=1"`
-	Exercises           []ExerciseRequest      `json:"exercises" validate:"dive"`
+	Name               string                 `json:"name" validate:"required,min=3,max=255"`
+	Description        string                 `json:"description"`
+	IsTemplate         bool                   `json:"is_template"`
+	IsPublic           bool                   `json:"is_public"`
+	Tags               []string               `json:"tags"`
+	Metadata           map[string]interface{} `json:"metadata"`
+	RepetitionsPlanned *int                   `json:"repetitions_planned" validate:"omitempty,gte=1"`
+	OwnedByUserID      *string                `json:"owned_by_user_id" validate:"omitempty,uuid"` // Admin can specify owner
+	Exercises          []ExerciseRequest      `json:"exercises" validate:"dive"`
 }
 
 type UpdateProgramRequest struct {
-	Name                *string                `json:"name" validate:"omitempty,min=3,max=255"`
-	Description         *string                `json:"description"`
-	IsTemplate          *bool                  `json:"is_template"`
-	IsPublic            *bool                  `json:"is_public"`
-	Tags                []string               `json:"tags"`
-	Metadata            map[string]interface{} `json:"metadata"`
-	RepetitionsPlanned  *int                   `json:"repetitions_planned" validate:"omitempty,gte=1"`
-	Exercises           []ExerciseRequest      `json:"exercises" validate:"dive"`
+	Name               *string                `json:"name" validate:"omitempty,min=3,max=255"`
+	Description        *string                `json:"description"`
+	IsTemplate         *bool                  `json:"is_template"`
+	IsPublic           *bool                  `json:"is_public"`
+	Tags               []string               `json:"tags"`
+	Metadata           map[string]interface{} `json:"metadata"`
+	RepetitionsPlanned *int                   `json:"repetitions_planned" validate:"omitempty,gte=1"`
+	Exercises          []ExerciseRequest      `json:"exercises" validate:"dive"`
 }
 
 // ExerciseRequest is used for exercises within program requests
