@@ -35,6 +35,17 @@ type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
+// Profile management requests (user self-service)
+type UpdateProfileRequest struct {
+	Email    *string `json:"email" validate:"omitempty,email"`
+	FullName *string `json:"full_name" validate:"omitempty,min=2"`
+}
+
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" validate:"required"`
+	NewPassword     string `json:"new_password" validate:"required,min=8"`
+}
+
 // Program requests
 type CreateProgramRequest struct {
 	Name               string                 `json:"name" validate:"required,min=3,max=255"`

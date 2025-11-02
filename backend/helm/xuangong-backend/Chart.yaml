@@ -1,0 +1,21 @@
+apiVersion: v2
+name: xuangong-backend
+description: A Helm chart for Xuan Gong Backend API - Martial Arts Training Application
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - xuangong
+  - martial-arts
+  - tai-chi
+  - training
+  - go
+  - api
+maintainers:
+  - name: Xuan Gong Fu Academy
+    email: info@xuangong.local
+dependencies:
+  - name: postgresql
+    version: "16.2.1"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled

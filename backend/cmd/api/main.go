@@ -145,6 +145,9 @@ func setupRouter(
 	{
 		// Auth
 		protected.POST("/auth/logout", authHandler.Logout)
+		protected.GET("/auth/me", authHandler.GetProfile)
+		protected.PUT("/auth/me", authHandler.UpdateProfile)
+		protected.PUT("/auth/change-password", authHandler.ChangePassword)
 
 		// Programs
 		programs := protected.Group("/programs")

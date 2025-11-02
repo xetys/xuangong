@@ -1,0 +1,96 @@
+玄功 - Xuan Gong Backend API has been installed!
+
+Chart Version: {{ .Chart.Version }}
+App Version: {{ .Chart.AppVersion }}
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+=======================================================================
+
+{{- if .Values.ingress.enabled }}
+
+Your application is accessible at:
+{{- range .Values.ingress.hosts }}
+  https://{{ .host }}
+{{- end }}
+
+{{- else }}
+
+To access your application:
+
+1. Get the application URL by running:
+
+{{- if contains "NodePort" .Values.service.type }}
+
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "xuangong-backend.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "http://$NODE_IP:$NODE_PORT"
+
+{{- else if contains "LoadBalancer" .Values.service.type }}
+
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "xuangong-backend.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo "http://$SERVICE_IP:{{ .Values.service.port }}"
+
+{{- else if contains "ClusterIP" .Values.service.type }}
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "xuangong-backend.fullname" . }} 8080:{{ .Values.service.port }}
+
+  Then access the application at: http://localhost:8080
+
+{{- end }}
+
+2. Check the health endpoint:
+  curl http://localhost:8080/health
+
+{{- end }}
+
+=======================================================================
+
+IMPORTANT: Security Configuration
+
+{{- if eq .Values.secrets.databasePassword "changeme" }}
+⚠️  WARNING: You are using the default database password!
+   Please update the password in production:
+
+   helm upgrade {{ .Release.Name }} {{ .Chart.Name }} \
+     --set secrets.databasePassword=YOUR_SECURE_PASSWORD \
+     --reuse-values
+{{- end }}
+
+{{- if eq .Values.secrets.jwtSecret "changeme-generate-secure-random-string" }}
+⚠️  WARNING: You are using the default JWT secret!
+   Please update the JWT secret in production:
+
+   helm upgrade {{ .Release.Name }} {{ .Chart.Name }} \
+     --set secrets.jwtSecret=YOUR_SECURE_JWT_SECRET \
+     --reuse-values
+{{- end }}
+
+=======================================================================
+
+Useful Commands:
+
+# View pods
+kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+# View logs
+kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --tail=100 -f
+
+# Scale deployment
+kubectl scale deployment {{ include "xuangong-backend.fullname" . }} -n {{ .Release.Namespace }} --replicas=3
+
+=======================================================================
+
+Configuration:
+- Database: {{ .Values.config.database.host }}:{{ .Values.config.database.port }}/{{ .Values.config.database.name }}
+- Environment: {{ .Values.config.server.env }}
+- API Version: {{ .Values.config.server.apiVersion }}
+{{- if .Values.autoscaling.enabled }}
+- Autoscaling: Enabled ({{ .Values.autoscaling.minReplicas }}-{{ .Values.autoscaling.maxReplicas }} replicas)
+{{- else }}
+- Replicas: {{ .Values.replicaCount }}
+{{- end }}
+
+For more information, visit: https://xuangong.example.com/docs

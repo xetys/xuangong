@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/xuangong/backend/internal/middleware"
 	"github.com/xuangong/backend/internal/models"
 	"github.com/xuangong/backend/internal/services"
 	"github.com/xuangong/backend/internal/validators"
@@ -140,5 +141,102 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	// In production, you might want to implement token blacklisting.
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Logged out successfully",
+	})
+}
+
+// GetProfile godoc
+// @Summary Get current user profile
+// @Tags auth
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/auth/me [get]
+// @Security BearerAuth
+func (h *AuthHandler) GetProfile(c *gin.Context) {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
+	if err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, user.ToResponse())
+}
+
+// UpdateProfile godoc
+// @Summary Update current user profile
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body validators.UpdateProfileRequest true "Profile update details"
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/auth/me [put]
+// @Security BearerAuth
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	var req validators.UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondWithError(c, appErrors.NewBadRequestError("Invalid request body"))
+		return
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		respondWithValidationError(c, err)
+		return
+	}
+
+	if err := h.authService.UpdateProfile(c.Request.Context(), userID, req.Email, req.FullName); err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Profile updated successfully",
+	})
+}
+
+// ChangePassword godoc
+// @Summary Change user password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body validators.ChangePasswordRequest true "Password change details"
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/auth/change-password [put]
+// @Security BearerAuth
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	var req validators.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondWithError(c, appErrors.NewBadRequestError("Invalid request body"))
+		return
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		respondWithValidationError(c, err)
+		return
+	}
+
+	if err := h.authService.ChangePassword(c.Request.Context(), userID, req.CurrentPassword, req.NewPassword); err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Password changed successfully",
 	})
 }

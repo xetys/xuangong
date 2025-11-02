@@ -2,19 +2,20 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../widgets/xg_button.dart';
 import 'home_screen.dart';
-import 'register_screen.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({Key? key}) : super(key: key);
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
 
   bool _isLoading = false;
@@ -22,12 +23,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _fullNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
+  Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -38,9 +41,10 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final user = await _authService.login(
+      final user = await _authService.register(
         _emailController.text.trim(),
         _passwordController.text,
+        _fullNameController.text.trim(),
       );
 
       if (mounted) {
@@ -70,6 +74,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: burgundy),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -85,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     '玄功',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 56,
+                      fontSize: 48,
                       fontWeight: FontWeight.w300,
                       color: burgundy,
                       letterSpacing: 8,
@@ -93,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Xuan Gong',
+                    'Create Account',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 24,
@@ -102,7 +114,36 @@ class _LoginScreenState extends State<LoginScreen> {
                       letterSpacing: 2,
                     ),
                   ),
-                  const SizedBox(height: 64),
+                  const SizedBox(height: 48),
+
+                  // Full Name field
+                  TextFormField(
+                    controller: _fullNameController,
+                    decoration: InputDecoration(
+                      labelText: 'Full Name',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: burgundy, width: 2),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your full name';
+                      }
+                      if (value.length < 2) {
+                        return 'Name must be at least 2 characters';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
 
                   // Email field
                   TextFormField(
@@ -154,7 +195,40 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
+                        return 'Please enter a password';
+                      }
+                      if (value.length < 8) {
+                        return 'Password must be at least 8 characters';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Confirm Password field
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm Password',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: burgundy, width: 2),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please confirm your password';
+                      }
+                      if (value != _passwordController.text) {
+                        return 'Passwords do not match';
                       }
                       return null;
                     },
@@ -175,48 +249,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
 
-                  // Login button
+                  // Register button
                   XGButton(
-                    text: 'Login',
-                    onPressed: _handleLogin,
+                    text: 'Create Account',
+                    onPressed: _handleRegister,
                     isLoading: _isLoading,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Create account link
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        "Don't have an account? ",
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 14,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => const RegisterScreen(),
-                            ),
-                          );
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: const Text(
-                          'Create Account',
-                          style: TextStyle(
-                            color: burgundy,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),

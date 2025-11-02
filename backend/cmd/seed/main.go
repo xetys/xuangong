@@ -218,7 +218,7 @@ func main() {
 		program := &models.Program{
 			Name:        p.name,
 			Description: p.description,
-			CreatedBy:   &admin.ID,
+			OwnedBy:     &admin.ID,
 			IsTemplate:  true,
 			IsPublic:    true,
 			Tags:        p.tags,

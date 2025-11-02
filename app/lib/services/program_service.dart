@@ -1,5 +1,4 @@
 import '../models/program.dart';
-import '../models/exercise.dart';
 import '../config/api_config.dart';
 import 'api_client.dart';
 

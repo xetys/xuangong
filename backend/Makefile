@@ -1,6 +1,8 @@
-.PHONY: dev run build test migrate-up migrate-down migrate-create seed docker-up docker-down clean install-tools tidy
+.PHONY: dev run build test migrate-up migrate-down migrate-create seed docker-up docker-down docker-build-prod docker-push-prod clean install-tools tidy
 
 DOCKER_COMPOSE = docker compose
+IMAGE_REPO = ghcr.io/xetys/xuangong/api
+TAG ?= latest
 
 # Development
 dev:
@@ -64,6 +66,21 @@ docker-build:
 	@echo "Building Docker image..."
 	$(DOCKER_COMPOSE) build
 
+docker-build-prod:
+	@echo "Building production Docker image for linux/amd64..."
+	@echo "Image: $(IMAGE_REPO):$(TAG)"
+	docker buildx build \
+		--platform linux/amd64 \
+		--tag $(IMAGE_REPO):$(TAG) \
+		--file Dockerfile \
+		--load \
+		.
+
+docker-push-prod:
+	@echo "Pushing production Docker image..."
+	@echo "Image: $(IMAGE_REPO):$(TAG)"
+	docker push $(IMAGE_REPO):$(TAG)
+
 # Cleanup
 clean:
 	@echo "Cleaning up..."
@@ -112,6 +129,8 @@ help:
 	@echo "  docker-up       - Start Docker containers"
 	@echo "  docker-down     - Stop Docker containers"
 	@echo "  docker-logs     - Show Docker logs"
+	@echo "  docker-build-prod - Build production Docker image (use: make docker-build-prod TAG=v2025.1.0-alpha1)"
+	@echo "  docker-push-prod  - Push production Docker image to registry"
 	@echo "  clean           - Clean build artifacts"
 	@echo "  tidy            - Tidy Go dependencies"
 	@echo "  install-tools   - Install development tools"

@@ -1,11 +1,22 @@
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html show window;
 
 class ApiConfig {
   // Base URL configuration based on platform
   static String get baseUrl {
     if (kIsWeb) {
-      // Web platform
+      // Web platform - check for runtime environment variable
+      try {
+        final apiUrl = html.window.localStorage['API_URL'];
+        if (apiUrl != null && apiUrl.isNotEmpty) {
+          return apiUrl;
+        }
+      } catch (e) {
+        // Fall back to default if localStorage not available
+      }
+      // Default for local web development
       return 'http://localhost:8080';
     } else if (Platform.isIOS) {
       // iOS Simulator
@@ -27,6 +38,8 @@ class ApiConfig {
   static String get registerUrl => '$apiBase/auth/register';
   static String get refreshUrl => '$apiBase/auth/refresh';
   static String get logoutUrl => '$apiBase/auth/logout';
+  static String get profileUrl => '$apiBase/auth/me';
+  static String get changePasswordUrl => '$apiBase/auth/change-password';
 
   // Program endpoints
   static String get myProgramsUrl => '$apiBase/my-programs';

@@ -18,21 +18,32 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="Xuan Gong martial arts training app">
+
+  <!-- Theme color for PWA and browser UI -->
+  <meta name="theme-color" content="#9B1C1C">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="app">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Xuan Gong">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>app</title>
+  <title>Xuan Gong</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <!-- Runtime configuration injected by nginx -->
+  <script>
+    // Set API URL from environment variable (injected at runtime)
+    const apiUrl = '$API_URL';
+    if (apiUrl && apiUrl !== '$' + 'API_URL') {
+      localStorage.setItem('API_URL', apiUrl);
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

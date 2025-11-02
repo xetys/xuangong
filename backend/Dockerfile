@@ -24,16 +24,23 @@ FROM alpine:latest
 # Install ca-certificates for HTTPS
 RUN apk --no-cache add ca-certificates
 
-WORKDIR /root/
+# Create non-root user
+RUN addgroup -g 1000 appgroup && \
+    adduser -D -u 1000 -G appgroup appuser
 
-# Copy the binary from builder
-COPY --from=builder /app/main .
+WORKDIR /app
+
+# Copy the binary from builder with execute permissions
+COPY --from=builder --chown=appuser:appgroup --chmod=755 /app/main .
 
 # Copy migrations
-COPY --from=builder /app/migrations ./migrations
+COPY --from=builder --chown=appuser:appgroup /app/migrations ./migrations
 
-# Copy environment files
-COPY --from=builder /app/.env.* ./
+# Note: Environment variables should come from Kubernetes ConfigMap/Secret
+# not from .env files in production
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 8080

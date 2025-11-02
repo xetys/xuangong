@@ -147,6 +147,70 @@ func (s *AuthService) generateTokens(user *models.User) (*auth.TokenPair, error)
 	return tokens, nil
 }
 
+func (s *AuthService) UpdateProfile(ctx context.Context, userID uuid.UUID, email, fullName *string) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return appErrors.NewInternalError("Failed to fetch user").WithError(err)
+	}
+	if user == nil {
+		return appErrors.NewNotFoundError("User")
+	}
+
+	// Check if email is being changed and if it already exists
+	if email != nil && *email != user.Email {
+		exists, err := s.userRepo.EmailExists(ctx, *email)
+		if err != nil {
+			return appErrors.NewInternalError("Failed to check email existence").WithError(err)
+		}
+		if exists {
+			return appErrors.NewConflictError("Email already in use")
+		}
+	}
+
+	// Update user fields
+	if email != nil {
+		user.Email = *email
+	}
+	if fullName != nil {
+		user.FullName = *fullName
+	}
+
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return appErrors.NewInternalError("Failed to update profile").WithError(err)
+	}
+
+	return nil
+}
+
+func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return appErrors.NewInternalError("Failed to fetch user").WithError(err)
+	}
+	if user == nil {
+		return appErrors.NewNotFoundError("User")
+	}
+
+	// Verify current password
+	if !auth.CheckPassword(currentPassword, user.PasswordHash) {
+		return appErrors.NewAuthenticationError("Current password is incorrect")
+	}
+
+	// Hash new password
+	passwordHash, err := auth.HashPassword(newPassword)
+	if err != nil {
+		return appErrors.NewInternalError("Failed to hash password").WithError(err)
+	}
+
+	// Update password
+	user.PasswordHash = passwordHash
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return appErrors.NewInternalError("Failed to update password").WithError(err)
+	}
+
+	return nil
+}
+
 func (s *AuthService) ValidateAccessToken(token string) (*auth.Claims, error) {
 	claims, err := auth.ValidateToken(token, s.cfg.JWT.Secret, auth.AccessToken)
 	if err != nil {
