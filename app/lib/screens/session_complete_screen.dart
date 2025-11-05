@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/program.dart';
 import '../widgets/xg_button.dart';
 import 'session_edit_screen.dart';
+import 'practice_calendar_screen.dart';
 
 class SessionCompleteScreen extends StatelessWidget {
   final Program program;
@@ -82,28 +83,29 @@ class SessionCompleteScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      Icons.local_fire_department,
-                      '3',
-                      'Day Streak',
-                      burgundy,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildStatCard(
-                      Icons.trending_up,
-                      '12',
-                      'Total Sessions',
-                      burgundy,
-                    ),
-                  ),
-                ],
-              ),
+              // TODO: Implement streak and total sessions tracking
+              // const SizedBox(height: 16),
+              // Row(
+              //   children: [
+              //     Expanded(
+              //       child: _buildStatCard(
+              //         Icons.local_fire_department,
+              //         '3',
+              //         'Day Streak',
+              //         burgundy,
+              //       ),
+              //     ),
+              //     const SizedBox(width: 16),
+              //     Expanded(
+              //       child: _buildStatCard(
+              //         Icons.trending_up,
+              //         '12',
+              //         'Total Sessions',
+              //         burgundy,
+              //       ),
+              //     ),
+              //   ],
+              // ),
               const SizedBox(height: 48),
 
               // Actions
@@ -145,9 +147,9 @@ class SessionCompleteScreen extends StatelessWidget {
               const SizedBox(height: 12),
               TextButton(
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Session history - Coming soon!'),
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const PracticeCalendarScreen(),
                     ),
                   );
                 },

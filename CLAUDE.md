@@ -120,9 +120,70 @@ Audio cues are critical for meditation and form work:
 ```
 xuangong/
 ├── CLAUDE.md          (this file)
+├── .claude/           (Claude Code configuration)
+│   ├── tasks/         (Session and context tracking)
+│   │   ├── sessions/  (Conversation session logs)
+│   │   └── context/   (Quick reference context files)
+│   └── settings.local.json
 ├── app/               (Flutter application)
 └── backend/           (Go API server)
 ```
+
+
+## Session & Context Management
+
+In this section we define how agents are used to manage sessions and context.
+
+### Agents
+
+We have the following agents:
+- flutter-dev-expert
+- golang-backend-architect
+
+ALWAYS try to get advice when planning code changes.
+
+### Context-First Workflow
+Before starting any work, Claude Code should:
+1. **Read `.claude/tasks/context/recent-work.md`** - Understand what was done recently
+2. **Check relevant session files** in `.claude/tasks/sessions/` - Review past conversations
+3. **Consult `.claude/tasks/context/decisions.md`** - Understand architectural decisions
+
+### Working with subagents
+
+Before starting any work, Claude Code should:
+1. check all personal and project agents
+2. trying to decide, if the prompt needs to be answered by a subagent
+3. always prefer subagent for the specific contexts
+4. subagents are not used for performing action, but to propose plans
+
+### Subagent Usage Policy (STRICT)
+
+**Subagents are for RESEARCH ONLY. They MUST NOT implement or make changes.**
+
+When using the Task tool with Plan or Explore subagents:
+- ✅ **ALLOWED**: Read files, search code, gather information, create implementation plans
+- ❌ **FORBIDDEN**: Edit files, write files, run commands that modify state
+- **Main agent responsibility**: Execute implementation based on subagent's research/plan
+
+**Exception**: Readonly tools (Read, Glob, Grep, WebFetch) are always allowed for all agents.
+
+**Rationale**: This ensures:
+- Main agent maintains full context and control
+- Session continuity and proper documentation
+- Consistent code quality and decision tracking
+- Clear separation between research and implementation
+
+### Session Documentation
+
+After significant work or at session end:
+1. **Update session file** - Document what was accomplished, decisions made, files changed
+2. **Update `recent-work.md`** - Add latest changes to rolling log
+3. **Update `decisions.md`** - Record any architectural or technical decisions
+4. **Update `features.md`** - Document new features or significant changes
+
+Session files use naming format: `YYYY-MM-DD_topic-slug.md`
+
+See `.claude/tasks/README.md` for detailed documentation.
 
 ## Development Approach
 

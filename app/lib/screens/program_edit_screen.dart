@@ -3,6 +3,7 @@ import '../models/program.dart';
 import '../models/exercise.dart';
 import '../models/user.dart';
 import '../services/program_service.dart';
+import '../utils/youtube_url_helper.dart';
 
 class ProgramEditScreen extends StatefulWidget {
   final User? user; // Optional - needed for regular flow
@@ -650,6 +651,7 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
+  late TextEditingController _youtubeUrlController;
   late TextEditingController _durationController;
   late TextEditingController _repetitionsController;
   late TextEditingController _restController;
@@ -661,6 +663,7 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
     super.initState();
     _nameController = TextEditingController(text: widget.exercise?.name ?? '');
     _descriptionController = TextEditingController(text: widget.exercise?.description ?? '');
+    _youtubeUrlController = TextEditingController(text: widget.exercise?.youtubeUrl ?? '');
     _durationController = TextEditingController(
       text: widget.exercise?.durationSeconds?.toString() ?? '60',
     );
@@ -678,6 +681,7 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _youtubeUrlController.dispose();
     _durationController.dispose();
     _repetitionsController.dispose();
     _restController.dispose();
@@ -686,6 +690,13 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
 
   void _save() {
     if (_formKey.currentState!.validate()) {
+      // Prepare metadata with YouTube URL if provided
+      Map<String, dynamic>? metadata;
+      final youtubeUrl = _youtubeUrlController.text.trim();
+      if (youtubeUrl.isNotEmpty) {
+        metadata = {'youtube_url': youtubeUrl};
+      }
+
       final exercise = Exercise(
         id: widget.exercise?.id ?? '',
         programId: widget.exercise?.programId ?? '',
@@ -701,6 +712,7 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
             : null,
         hasSides: _hasSides,
         restAfterSeconds: int.tryParse(_restController.text) ?? 0,
+        metadata: metadata,
       );
       widget.onSave(exercise);
       Navigator.pop(context);
@@ -766,6 +778,40 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
                       border: OutlineInputBorder(),
                     ),
                     maxLines: 2,
+                  ),
+                  const SizedBox(height: 16),
+
+                  TextFormField(
+                    controller: _youtubeUrlController,
+                    decoration: InputDecoration(
+                      labelText: 'YouTube Demo Video (Optional)',
+                      hintText: 'https://youtube.com/watch?v=... or https://youtu.be/...',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.videocam),
+                      suffixIcon: _youtubeUrlController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                setState(() {
+                                  _youtubeUrlController.clear();
+                                });
+                              },
+                            )
+                          : null,
+                    ),
+                    keyboardType: TextInputType.url,
+                    validator: (value) {
+                      if (value != null && value.isNotEmpty) {
+                        final error = YouTubeUrlHelper.getValidationError(value);
+                        if (error != null) {
+                          return error;
+                        }
+                      }
+                      return null;
+                    },
+                    onChanged: (value) {
+                      setState(() {}); // Rebuild to show/hide clear button
+                    },
                   ),
                   const SizedBox(height: 16),
 

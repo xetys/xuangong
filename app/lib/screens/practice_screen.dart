@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../models/program.dart';
 import '../models/exercise.dart';
 import '../services/audio_service.dart';
+import '../services/notification_service.dart';
 import 'session_complete_screen.dart';
 
 class PracticeScreen extends StatefulWidget {
@@ -14,8 +16,9 @@ class PracticeScreen extends StatefulWidget {
   State<PracticeScreen> createState() => _PracticeScreenState();
 }
 
-class _PracticeScreenState extends State<PracticeScreen> {
+class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObserver {
   final AudioService _audioService = AudioService();
+  final NotificationService _notificationService = NotificationService();
 
   int currentExerciseIndex = 0;
   int remainingSeconds = 0;
@@ -28,12 +31,19 @@ class _PracticeScreenState extends State<PracticeScreen> {
   bool _hasShownInitialCountdown = false;
   int _initialExerciseDuration = 0;
   bool _halfTimeSoundPlayed = false;
+  bool _isInBackground = false;
 
   @override
   void initState() {
     super.initState();
+    // Add lifecycle observer
+    WidgetsBinding.instance.addObserver(this);
+
     // Initialize audio service
     _audioService.initialize();
+
+    // Enable wake lock to keep screen on
+    WakelockPlus.enable();
 
     // Check if program has exercises
     if (widget.program.exercises.isEmpty) {
@@ -53,8 +63,67 @@ class _PracticeScreenState extends State<PracticeScreen> {
 
   @override
   void dispose() {
+    // Remove lifecycle observer
+    WidgetsBinding.instance.removeObserver(this);
+
     _timer?.cancel();
+
+    // Disable wake lock
+    WakelockPlus.disable();
+
+    // Clear any notifications
+    _notificationService.clearNotifications();
+
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // Track when app goes to background/foreground
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _isInBackground = true;
+      _updateNotification();
+    } else if (state == AppLifecycleState.resumed) {
+      _isInBackground = false;
+      _notificationService.clearNotifications();
+    }
+  }
+
+  /// Update notification with current practice state
+  /// Only shows notification when app is in background
+  void _updateNotification() {
+    if (!_isInBackground) return;
+
+    final exercise = widget.program.exercises[currentExerciseIndex];
+    final current = currentExerciseIndex + 1;
+    final total = widget.program.exercises.length;
+
+    if (phase == PracticePhase.countdown) {
+      // Don't show notification during countdown
+      return;
+    } else if (phase == PracticePhase.rest) {
+      _notificationService.showRestNotification(
+        remainingSeconds: remainingSeconds,
+        currentExercise: current,
+        totalExercises: total,
+      );
+    } else if (exercise.type == ExerciseType.repetition) {
+      _notificationService.showRepetitionNotification(
+        exerciseName: exercise.name,
+        repetitions: exercise.repetitions,
+        currentExercise: current,
+        totalExercises: total,
+      );
+    } else {
+      _notificationService.showTimerNotification(
+        exerciseName: exercise.name,
+        remainingSeconds: remainingSeconds,
+        currentExercise: current,
+        totalExercises: total,
+      );
+    }
   }
 
   void _startCountdown() {
@@ -137,6 +206,9 @@ class _PracticeScreenState extends State<PracticeScreen> {
             }
 
             remainingSeconds--;
+
+            // Update notification with new time
+            _updateNotification();
           } else {
             _timer?.cancel();
             // Don't play sound here - just move to rest or next exercise
@@ -160,6 +232,9 @@ class _PracticeScreenState extends State<PracticeScreen> {
         setState(() {
           if (remainingSeconds > 0) {
             remainingSeconds--;
+
+            // Update notification with new time
+            _updateNotification();
           } else {
             _timer?.cancel();
             _nextExercise();

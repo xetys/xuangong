@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/xuangong/backend/internal/config"
 )
@@ -13,16 +15,27 @@ func CORS(cfg *config.CORSConfig) gin.HandlerFunc {
 		// Check if origin is allowed
 		allowed := false
 		for _, allowedOrigin := range cfg.AllowedOrigins {
-			if allowedOrigin == "*" || allowedOrigin == origin {
+			if allowedOrigin == "*" {
+				allowed = true
+				break
+			}
+			if allowedOrigin == origin {
+				allowed = true
+				break
+			}
+			// Allow any localhost origin in development (handles random Flutter ports)
+			if strings.HasPrefix(allowedOrigin, "localhost:") &&
+				(strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:")) {
 				allowed = true
 				break
 			}
 		}
 
 		if allowed {
+			// Always set the actual origin (not "*") when credentials are needed
 			if origin != "" {
 				c.Header("Access-Control-Allow-Origin", origin)
-			} else if len(cfg.AllowedOrigins) > 0 {
+			} else if len(cfg.AllowedOrigins) > 0 && cfg.AllowedOrigins[0] != "*" {
 				c.Header("Access-Control-Allow-Origin", cfg.AllowedOrigins[0])
 			}
 

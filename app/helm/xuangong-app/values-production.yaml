@@ -1,0 +1,74 @@
+# Production values for xuangong-app
+# Override default values for production deployment
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/xetys/xuangong/app
+  tag: "v2025.1.0-alpha13"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: regcred
+
+# Resource limits for production workload
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+# Enable autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Production configuration
+config:
+  # Backend API URL
+  apiUrl: "https://xuangong-prod.stytex.cloud"
+
+# Enable ingress with TLS
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: app.xuangong-prod.stytex.cloud
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: xuangong-app-tls-prod
+      hosts:
+        - app.xuangong-prod.stytex.cloud
+
+# Pod anti-affinity for high availability
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - xuangong-app
+          topologyKey: kubernetes.io/hostname
+
+# Node selector for production nodes
+nodeSelector: {}
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

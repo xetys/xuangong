@@ -7,6 +7,7 @@ import (
 	"github.com/xuangong/backend/internal/models"
 	"github.com/xuangong/backend/internal/repositories"
 	appErrors "github.com/xuangong/backend/pkg/errors"
+	"github.com/xuangong/backend/pkg/youtube"
 )
 
 type ExerciseService struct {
@@ -19,6 +20,38 @@ func NewExerciseService(exerciseRepo *repositories.ExerciseRepository, programRe
 		exerciseRepo: exerciseRepo,
 		programRepo:  programRepo,
 	}
+}
+
+// validateMetadata validates the metadata field, specifically checking YouTube URLs if present
+func (s *ExerciseService) validateMetadata(metadata map[string]interface{}) error {
+	if metadata == nil {
+		return nil
+	}
+
+	// Check if metadata contains a youtube_url
+	if youtubeURLRaw, exists := metadata["youtube_url"]; exists {
+		// Convert to string
+		youtubeURL, ok := youtubeURLRaw.(string)
+		if !ok {
+			return appErrors.NewBadRequestError("YouTube URL must be a string")
+		}
+
+		// Validate the YouTube URL
+		if _, err := youtube.ValidateURL(youtubeURL); err != nil {
+			switch err {
+			case youtube.ErrInvalidURL:
+				return appErrors.NewBadRequestError("Invalid YouTube URL format")
+			case youtube.ErrMissingVideoID:
+				return appErrors.NewBadRequestError("YouTube URL is missing video ID")
+			case youtube.ErrInvalidVideoID:
+				return appErrors.NewBadRequestError("Invalid YouTube video ID format")
+			default:
+				return appErrors.NewBadRequestError("Invalid YouTube URL: " + err.Error())
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s *ExerciseService) Create(ctx context.Context, exercise *models.Exercise) error {
@@ -53,6 +86,11 @@ func (s *ExerciseService) Create(ctx context.Context, exercise *models.Exercise)
 		if exercise.SideDurationSeconds == nil || *exercise.SideDurationSeconds <= 0 {
 			return appErrors.NewBadRequestError("Side duration is required for exercises with sides")
 		}
+	}
+
+	// Validate metadata (YouTube URL, etc.)
+	if err := s.validateMetadata(exercise.Metadata); err != nil {
+		return err
 	}
 
 	if err := s.exerciseRepo.Create(ctx, exercise); err != nil {
@@ -121,6 +159,11 @@ func (s *ExerciseService) Update(ctx context.Context, id uuid.UUID, updates *mod
 				return appErrors.NewBadRequestError("Duration or repetitions are required for combined exercises")
 			}
 		}
+	}
+
+	// Validate metadata (YouTube URL, etc.)
+	if err := s.validateMetadata(updates.Metadata); err != nil {
+		return err
 	}
 
 	if err := s.exerciseRepo.Update(ctx, updates); err != nil {

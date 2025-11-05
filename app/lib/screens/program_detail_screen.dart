@@ -8,6 +8,7 @@ import '../models/session.dart';
 import '../services/program_service.dart';
 import '../services/session_service.dart';
 import '../widgets/xg_button.dart';
+import '../widgets/youtube_player_widget.dart';
 import 'practice_screen.dart';
 import 'program_edit_screen.dart';
 import 'session_edit_screen.dart';
@@ -698,6 +699,13 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
                         ),
                     ],
                   ),
+                  // YouTube video player
+                  if (exercise.hasYoutubeVideo) ...[
+                    const SizedBox(height: 12),
+                    ExpandableYouTubePlayer(
+                      youtubeUrl: exercise.youtubeUrl!,
+                    ),
+                  ],
                 ],
               ),
             ),

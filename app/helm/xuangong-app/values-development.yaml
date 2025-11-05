@@ -1,0 +1,50 @@
+# Development values for xuangong-app
+# Override default values for development/staging deployment
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/xetys/xuangong/app
+  tag: "latest"
+  pullPolicy: Always
+
+# Lower resource limits for development
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 25m
+    memory: 32Mi
+
+# Disable autoscaling in development
+autoscaling:
+  enabled: false
+
+# Development configuration
+config:
+  # Backend API URL - adjust as needed
+  apiUrl: "http://xuangong-backend:8080"
+
+# Ingress configuration for development
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+  hosts:
+    - host: app.xuangong.dev.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# No node selector in development
+nodeSelector: {}
+
+# No affinity rules in development
+affinity: {}
+
+# Enable debug logging
+podAnnotations:
+  environment: development

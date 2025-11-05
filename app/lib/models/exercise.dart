@@ -108,6 +108,22 @@ class Exercise {
     }
     return '${secs}s';
   }
+
+  /// Get YouTube URL from metadata if it exists
+  String? get youtubeUrl {
+    if (metadata == null) return null;
+    final url = metadata!['youtube_url'];
+    if (url is String && url.isNotEmpty) {
+      return url;
+    }
+    return null;
+  }
+
+  /// Check if this exercise has a YouTube video demonstration
+  bool get hasYoutubeVideo {
+    final url = youtubeUrl;
+    return url != null && url.isNotEmpty;
+  }
 }
 
 enum ExerciseType {

@@ -49,6 +49,15 @@ dependencies:
   # Audio playback
   audioplayers: ^6.1.0
 
+  # Wake lock (keep screen on)
+  wakelock_plus: ^1.2.8
+
+  # Local notifications
+  flutter_local_notifications: ^17.2.3
+
+  # YouTube player for exercise demo videos (web-compatible)
+  youtube_player_iframe: ^5.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

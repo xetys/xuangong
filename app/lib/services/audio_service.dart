@@ -1,4 +1,6 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io' show Platform;
 
 class AudioService {
   // Singleton pattern
@@ -23,6 +25,19 @@ class AudioService {
     _halfPlayer = AudioPlayer();
     _lastTwoPlayer = AudioPlayer();
     _longGongPlayer = AudioPlayer();
+
+    // Configure audio context for background playback on iOS
+    if (!kIsWeb && Platform.isIOS) {
+      final audioContext = AudioContext(
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.playback,
+          options: {
+            AVAudioSessionOptions.mixWithOthers,
+          },
+        ),
+      );
+      AudioPlayer.global.setAudioContext(audioContext);
+    }
 
     // Set release mode to allow sounds to overlap
     await _startPlayer!.setReleaseMode(ReleaseMode.stop);

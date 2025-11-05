@@ -1,32 +1,10 @@
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html show window;
+import 'api_config_stub.dart'
+    if (dart.library.html) 'api_config_web.dart';
 
 class ApiConfig {
   // Base URL configuration based on platform
   static String get baseUrl {
-    if (kIsWeb) {
-      // Web platform - check for runtime environment variable
-      try {
-        final apiUrl = html.window.localStorage['API_URL'];
-        if (apiUrl != null && apiUrl.isNotEmpty) {
-          return apiUrl;
-        }
-      } catch (e) {
-        // Fall back to default if localStorage not available
-      }
-      // Default for local web development
-      return 'http://localhost:8080';
-    } else if (Platform.isIOS) {
-      // iOS Simulator
-      return 'http://localhost:8080';
-    } else if (Platform.isAndroid) {
-      // Android Emulator (10.0.2.2 maps to host's localhost)
-      return 'http://10.0.2.2:8080';
-    }
-    // Default fallback
-    return 'http://localhost:8080';
+    return getApiUrl();
   }
 
   // API endpoints

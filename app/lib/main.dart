@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
+import 'screens/home_screen.dart';
 import 'services/auth_service.dart';
+import 'services/notification_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize notification service
+  await NotificationService().initialize();
+
   runApp(const MyApp());
 }
 
@@ -100,15 +107,92 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final isLoggedIn = await _authService.isLoggedIn();
 
-    if (mounted) {
-      // Always go to login for MVP
-      // In production, you'd fetch user data if logged in
+    if (!mounted) return;
+
+    if (isLoggedIn) {
+      try {
+        // Try to fetch user data with stored token
+        final user = await _authService.getCurrentUser();
+
+        if (mounted) {
+          // Token is valid, navigate to HomeScreen
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => HomeScreen(user: user),
+            ),
+          );
+        }
+      } catch (e) {
+        // Check if it's a network error or auth error
+        final errorMessage = e.toString().toLowerCase();
+        final isNetworkError = errorMessage.contains('failed host lookup') ||
+            errorMessage.contains('network') ||
+            errorMessage.contains('socket') ||
+            errorMessage.contains('connection') ||
+            errorMessage.contains('timeout');
+
+        if (isNetworkError && mounted) {
+          // Network error - show retry dialog
+          _showNetworkErrorDialog();
+        } else {
+          // Token is invalid or other error - clear storage and go to login
+          await _authService.logout();
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => const LoginScreen(),
+              ),
+            );
+          }
+        }
+      }
+    } else {
+      // Not logged in, go to login screen
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => const LoginScreen(),
         ),
       );
     }
+  }
+
+  void _showNetworkErrorDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Network Error'),
+        content: const Text(
+          'Unable to connect to the server. Please check your internet connection and try again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Retry authentication
+              _checkAuthStatus();
+            },
+            child: const Text('Retry'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final navigator = Navigator.of(context);
+              navigator.pop();
+              // Clear tokens and go to login
+              await _authService.logout();
+              if (mounted) {
+                navigator.pushReplacement(
+                  MaterialPageRoute(
+                    builder: (context) => const LoginScreen(),
+                  ),
+                );
+              }
+            },
+            child: const Text('Login Again'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
