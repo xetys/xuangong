@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../models/program.dart';
 import '../services/user_service.dart';
+import '../services/auth_service.dart';
 import 'student_edit_screen.dart';
 import 'program_edit_screen.dart';
-import 'student_program_detail_screen.dart';
+import 'program_detail_screen.dart';
 
 class StudentDetailScreen extends StatefulWidget {
   final User student;
@@ -17,25 +18,30 @@ class StudentDetailScreen extends StatefulWidget {
 
 class _StudentDetailScreenState extends State<StudentDetailScreen> {
   final UserService _userService = UserService();
+  final AuthService _authService = AuthService();
   List<Program>? _programs;
+  User? _currentUser; // The logged-in admin user
   bool _loading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadPrograms();
+    _loadData();
   }
 
-  Future<void> _loadPrograms() async {
+  Future<void> _loadData() async {
     setState(() {
       _loading = true;
       _error = null;
     });
 
     try {
+      // Load current admin user and student's programs
+      final currentUser = await _authService.getCurrentUser();
       final programs = await _userService.getUserPrograms(widget.student.id);
       setState(() {
+        _currentUser = currentUser;
         _programs = programs;
         _loading = false;
       });
@@ -44,6 +50,25 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         _error = e.toString();
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadPrograms() async {
+    // Reload programs only (for refresh after adding/editing)
+    try {
+      final programs = await _userService.getUserPrograms(widget.student.id);
+      setState(() {
+        _programs = programs;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to reload programs: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -337,11 +362,12 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: () async {
+            // Navigate to regular ProgramDetailScreen with admin user
             final result = await Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (context) => StudentProgramDetailScreen(
+                builder: (context) => ProgramDetailScreen(
                   program: program,
-                  student: widget.student,
+                  user: _currentUser,
                 ),
               ),
             );

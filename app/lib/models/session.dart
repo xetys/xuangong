@@ -55,14 +55,28 @@ class PracticeSession {
 class ExerciseLog {
   final String? id;
   final String sessionId;
-  final String exerciseId;
+  final String? exerciseId;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final int? plannedDurationSeconds;
+  final int? actualDurationSeconds;
+  final int? repetitionsPlanned;
   final int? repetitionsCompleted;
+  final bool skipped;
+  final String? notes;
 
   ExerciseLog({
     this.id,
     required this.sessionId,
-    required this.exerciseId,
+    this.exerciseId,
+    this.startedAt,
+    this.completedAt,
+    this.plannedDurationSeconds,
+    this.actualDurationSeconds,
+    this.repetitionsPlanned,
     this.repetitionsCompleted,
+    this.skipped = false,
+    this.notes,
   });
 
   factory ExerciseLog.fromJson(Map<String, dynamic> json) {
@@ -70,7 +84,14 @@ class ExerciseLog {
       id: json['id'],
       sessionId: json['session_id'],
       exerciseId: json['exercise_id'],
+      startedAt: json['started_at'] != null ? DateTime.parse(json['started_at']) : null,
+      completedAt: json['completed_at'] != null ? DateTime.parse(json['completed_at']) : null,
+      plannedDurationSeconds: json['planned_duration_seconds'],
+      actualDurationSeconds: json['actual_duration_seconds'],
+      repetitionsPlanned: json['repetitions_planned'],
       repetitionsCompleted: json['repetitions_completed'],
+      skipped: json['skipped'] ?? false,
+      notes: json['notes'],
     );
   }
 
@@ -79,7 +100,14 @@ class ExerciseLog {
       'id': id,
       'session_id': sessionId,
       'exercise_id': exerciseId,
+      'started_at': startedAt?.toIso8601String(),
+      'completed_at': completedAt?.toIso8601String(),
+      'planned_duration_seconds': plannedDurationSeconds,
+      'actual_duration_seconds': actualDurationSeconds,
+      'repetitions_planned': repetitionsPlanned,
       'repetitions_completed': repetitionsCompleted,
+      'skipped': skipped,
+      'notes': notes,
     };
   }
 }

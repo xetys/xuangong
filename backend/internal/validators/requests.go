@@ -26,6 +26,10 @@ type UpdateUserRequest struct {
 	IsActive *bool   `json:"is_active"`
 }
 
+type UpdateUserRoleRequest struct {
+	Role string `json:"role" validate:"required,oneof=admin student"`
+}
+
 type LoginRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required"`

@@ -154,3 +154,10 @@ func (r *UserRepository) EmailExists(ctx context.Context, email string) (bool, e
 	err := r.db.QueryRow(ctx, query, email).Scan(&exists)
 	return exists, err
 }
+
+func (r *UserRepository) CountAdmins(ctx context.Context) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = true`
+	err := r.db.QueryRow(ctx, query).Scan(&count)
+	return count, err
+}

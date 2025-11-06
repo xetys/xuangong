@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/xuangong/backend/internal/models"
 	"github.com/xuangong/backend/internal/services"
 	"github.com/xuangong/backend/internal/validators"
 	appErrors "github.com/xuangong/backend/pkg/errors"
@@ -213,5 +214,75 @@ func (h *UserHandler) GetUserPrograms(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"programs": programs,
+	})
+}
+
+// UpdateUserRole godoc
+// @Summary Update a user's role (admin only)
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Param request body validators.UpdateUserRoleRequest true "New role"
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/users/{id}/role [put]
+// @Security BearerAuth
+func (h *UserHandler) UpdateUserRole(c *gin.Context) {
+	// Parse target user ID from URL parameter
+	targetUserID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		respondWithError(c, appErrors.NewBadRequestError("Invalid user ID"))
+		return
+	}
+
+	// Parse request body
+	var req validators.UpdateUserRoleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondWithError(c, appErrors.NewBadRequestError("Invalid request body"))
+		return
+	}
+
+	// Validate request
+	if err := h.validate.Struct(req); err != nil {
+		respondWithValidationError(c, err)
+		return
+	}
+
+	// Get requesting user ID and role from middleware context
+	requestingUserIDStr, exists := c.Get("user_id")
+	if !exists {
+		respondWithError(c, appErrors.NewAuthenticationError("User not authenticated"))
+		return
+	}
+
+	requestingUserID, err := uuid.Parse(requestingUserIDStr.(string))
+	if err != nil {
+		respondWithError(c, appErrors.NewAuthenticationError("Invalid user ID in token"))
+		return
+	}
+
+	requestingRoleStr, exists := c.Get("user_role")
+	if !exists {
+		respondWithError(c, appErrors.NewAuthenticationError("User role not found in token"))
+		return
+	}
+
+	requestingRole := models.UserRole(requestingRoleStr.(string))
+	newRole := models.UserRole(req.Role)
+
+	// Call service to update role
+	if err := h.userService.UpdateUserRole(
+		c.Request.Context(),
+		requestingUserID,
+		requestingRole,
+		targetUserID,
+		newRole,
+	); err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "User role updated successfully",
 	})
 }

@@ -137,4 +137,41 @@ class SessionService {
       throw Exception('Failed to delete session: ${e.toString()}');
     }
   }
+
+  // Get sessions for a specific user (admin only)
+  Future<List<SessionWithLogs>> getUserSessions(
+    String userId, {
+    String? programId,
+    DateTime? startDate,
+    DateTime? endDate,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      };
+      if (programId != null) {
+        queryParams['program_id'] = programId;
+      }
+      if (startDate != null) {
+        queryParams['start_date'] = startDate.toIso8601String().split('T')[0]; // YYYY-MM-DD format
+      }
+      if (endDate != null) {
+        queryParams['end_date'] = endDate.toIso8601String().split('T')[0]; // YYYY-MM-DD format
+      }
+
+      final uri = Uri.parse('${ApiConfig.apiBase}/users/$userId/sessions')
+          .replace(queryParameters: queryParams);
+
+      final response = await _apiClient.get(uri.toString());
+      final data = _apiClient.parseResponse(response);
+
+      final sessions = data['sessions'] as List<dynamic>;
+      return sessions.map((s) => SessionWithLogs.fromJson(s)).toList();
+    } catch (e) {
+      throw Exception('Failed to get user sessions: ${e.toString()}');
+    }
+  }
 }

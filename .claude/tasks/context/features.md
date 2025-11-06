@@ -129,16 +129,40 @@
 
 ## Student Management (Admin)
 
-**Status**: ✅ Complete
+**Status**: ✅ Complete (Enhanced 2025-11-06)
 **Location**: `app/lib/screens/student_detail_screen.dart`, `app/lib/screens/student_edit_screen.dart`
 
+### Student Administration
 - View all students
 - Student profile details
 - Assign/unassign programs
 - View student progress
 - Student permissions management
+- **Role Management**: Promote students to admin or demote admins to students
+  - Safety check prevents removing the last admin
+  - Real-time role updates
 
-**Backend**: `backend/internal/handlers/user_handler.go`
+### Program Management for Students
+- View all programs assigned to a student
+- **Delete Programs**: Admins can delete student programs (with soft delete)
+- **Edit Programs**: Full edit capability with exercise management
+- **Program Restoration**: Deleted programs marked with `deleted_at` timestamp
+
+### Session Viewing (NEW)
+**Status**: ✅ Complete
+**Location**: `app/lib/screens/session_detail_screen.dart`, `app/lib/services/session_service.dart`
+
+- **Admin Session Access**: Admins can view any user's practice sessions
+- **Read-Only View**: Dedicated SessionDetailScreen for viewing (not editing) student sessions
+- **Session Filtering**: Filter by program, date range
+- **Detailed Exercise Logs**: View repetitions completed, durations, skipped exercises, notes
+- **Role-Based Authorization**: Students can only view/edit their own sessions
+
+**Backend**: `backend/internal/handlers/user_handler.go`, `backend/internal/handlers/sessions.go`
+**API Endpoints**:
+- `GET /api/v1/users/:id/sessions` - Get sessions for any user (admin only)
+- `PUT /api/v1/users/:id/role` - Update user role (admin only)
+- `GET /api/v1/sessions/:id` - Get session details (role-aware authorization)
 
 ## Account Management
 

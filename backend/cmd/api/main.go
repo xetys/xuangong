@@ -49,7 +49,7 @@ func main() {
 	authService := services.NewAuthService(userRepo, cfg)
 	programService := services.NewProgramService(programRepo, exerciseRepo)
 	sessionService := services.NewSessionService(sessionRepo, programRepo)
-	userService := services.NewUserService(userRepo, programRepo)
+	userService := services.NewUserService(userRepo, programRepo, exerciseRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -191,6 +191,8 @@ func setupRouter(
 			users.PUT("/:id", userHandler.UpdateUser)
 			users.DELETE("/:id", userHandler.DeleteUser)
 			users.GET("/:id/programs", userHandler.GetUserPrograms)
+			users.GET("/:id/sessions", sessionHandler.GetUserSessions)
+			users.PUT("/:id/role", userHandler.UpdateUserRole)
 		}
 
 		// TODO: Add submissions, feedback, exercises endpoints

@@ -63,6 +63,47 @@ class _StudentEditScreenState extends State<StudentEditScreen> {
           password: _passwordController.text.isNotEmpty ? _passwordController.text : null,
           isActive: _isActive,
         );
+
+        // Update role if it changed
+        final currentRole = widget.student!.role;
+        final newRole = _isAdmin ? 'admin' : 'student';
+        if (currentRole != newRole) {
+          try {
+            await _userService.updateUserRole(
+              userId: widget.student!.id,
+              role: newRole,
+            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Role updated to $newRole'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          } catch (roleError) {
+            // Role update failed, revert the toggle
+            setState(() => _isAdmin = !_isAdmin);
+            if (mounted) {
+              final errorMsg = roleError.toString();
+              String friendlyMessage = 'Failed to update role';
+
+              if (errorMsg.contains('last admin') || errorMsg.contains('at least one admin')) {
+                friendlyMessage = 'Cannot remove admin privileges: System must have at least one admin user';
+              }
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(friendlyMessage),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+            // Re-throw to prevent "success" message
+            rethrow;
+          }
+        }
       }
 
       if (mounted) {
@@ -75,7 +116,8 @@ class _StudentEditScreenState extends State<StudentEditScreen> {
         Navigator.of(context).pop(true);
       }
     } catch (e) {
-      if (mounted) {
+      // Only show generic error if not already handled
+      if (mounted && !e.toString().contains('last admin')) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),
@@ -176,16 +218,15 @@ class _StudentEditScreenState extends State<StudentEditScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             const SizedBox(height: 12),
-            if (!isEditing)
-              SwitchListTile(
-                title: const Text('Admin'),
-                subtitle: const Text('User has admin privileges'),
-                value: _isAdmin,
-                activeColor: burgundy,
-                onChanged: (value) => setState(() => _isAdmin = value),
-                tileColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
+            SwitchListTile(
+              title: const Text('Admin'),
+              subtitle: const Text('User has admin privileges'),
+              value: _isAdmin,
+              activeColor: burgundy,
+              onChanged: (value) => setState(() => _isAdmin = value),
+              tileColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             const SizedBox(height: 32),
             SizedBox(
               height: 50,

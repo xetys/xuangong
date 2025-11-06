@@ -11,14 +11,16 @@ import (
 )
 
 type UserService struct {
-	userRepo    *repositories.UserRepository
-	programRepo *repositories.ProgramRepository
+	userRepo     *repositories.UserRepository
+	programRepo  *repositories.ProgramRepository
+	exerciseRepo *repositories.ExerciseRepository
 }
 
-func NewUserService(userRepo *repositories.UserRepository, programRepo *repositories.ProgramRepository) *UserService {
+func NewUserService(userRepo *repositories.UserRepository, programRepo *repositories.ProgramRepository, exerciseRepo *repositories.ExerciseRepository) *UserService {
 	return &UserService{
-		userRepo:    userRepo,
-		programRepo: programRepo,
+		userRepo:     userRepo,
+		programRepo:  programRepo,
+		exerciseRepo: exerciseRepo,
 	}
 }
 
@@ -184,14 +186,59 @@ func (s *UserService) GetUserPrograms(ctx context.Context, userID uuid.UUID) ([]
 		return nil, appErrors.NewInternalError("Failed to fetch user programs").WithError(err)
 	}
 
-	// Build ProgramWithExercises response
+	// Fetch exercises for each program
 	result := make([]models.ProgramWithExercises, len(programs))
 	for i, program := range programs {
+		exercises, err := s.exerciseRepo.ListByProgramID(ctx, program.ID)
+		if err != nil {
+			return nil, appErrors.NewInternalError("Failed to fetch exercises").WithError(err)
+		}
 		result[i] = models.ProgramWithExercises{
 			Program:   program,
-			Exercises: []models.Exercise{}, // Could fetch exercises if needed
+			Exercises: exercises,
 		}
 	}
 
 	return result, nil
+}
+
+// UpdateUserRole updates a user's role (admin only)
+func (s *UserService) UpdateUserRole(ctx context.Context, requestingUserID uuid.UUID, requestingRole models.UserRole, targetUserID uuid.UUID, newRole models.UserRole) error {
+	// Authorization check: only admins can update user roles
+	if requestingRole != models.RoleAdmin {
+		return appErrors.NewAuthorizationError("Only admins can update user roles")
+	}
+
+	// Validate new role
+	if newRole != models.RoleAdmin && newRole != models.RoleStudent {
+		return appErrors.NewBadRequestError("Invalid role. Must be 'admin' or 'student'")
+	}
+
+	// Get target user
+	targetUser, err := s.userRepo.GetByID(ctx, targetUserID)
+	if err != nil {
+		return appErrors.NewInternalError("Failed to fetch user").WithError(err)
+	}
+	if targetUser == nil {
+		return appErrors.NewNotFoundError("User")
+	}
+
+	// If demoting an admin to student, check if this is the last admin
+	if targetUser.Role == models.RoleAdmin && newRole == models.RoleStudent {
+		adminCount, err := s.userRepo.CountAdmins(ctx)
+		if err != nil {
+			return appErrors.NewInternalError("Failed to count admins").WithError(err)
+		}
+		if adminCount <= 1 {
+			return appErrors.NewBadRequestError("Cannot demote the last admin")
+		}
+	}
+
+	// Update role
+	targetUser.Role = newRole
+	if err := s.userRepo.Update(ctx, targetUser); err != nil {
+		return appErrors.NewInternalError("Failed to update user role").WithError(err)
+	}
+
+	return nil
 }

@@ -12,6 +12,7 @@ import '../widgets/youtube_player_widget.dart';
 import 'practice_screen.dart';
 import 'program_edit_screen.dart';
 import 'session_edit_screen.dart';
+import 'session_detail_screen.dart';
 
 class ProgramDetailScreen extends StatefulWidget {
   final Program program;
@@ -41,14 +42,22 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
   @override
   void initState() {
     super.initState();
-    // Templates only have Overview tab, programs have all 3 tabs
-    final tabCount = widget.program.isTemplate ? 1 : 3;
+    // Determine if we should show tabs:
+    // - Templates only show Overview
+    // - Admins always see all 3 tabs (to view student progress)
+    // - Students see all 3 tabs for their programs
+    final bool showAllTabs = !widget.program.isTemplate || _isAdmin();
+    final tabCount = showAllTabs ? 3 : 1;
     _tabController = TabController(length: tabCount, vsync: this);
 
-    if (!widget.program.isTemplate) {
+    if (showAllTabs) {
       _tabController.addListener(_onTabChanged);
       _loadSessions();
     }
+  }
+
+  bool _isAdmin() {
+    return widget.user?.role == 'admin';
   }
 
   void _onTabChanged() {
@@ -63,10 +72,23 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
     setState(() => _isLoadingSessions = true);
 
     try {
-      final sessions = await _sessionService.listSessions(
-        programId: widget.program.id,
-        limit: 100,
-      );
+      List<SessionWithLogs> sessions;
+
+      // If admin viewing a student's program, use getUserSessions
+      if (_isAdmin() && widget.program.ownedBy != null) {
+        sessions = await _sessionService.getUserSessions(
+          widget.program.ownedBy!,
+          programId: widget.program.id,
+          limit: 100,
+        );
+      } else {
+        // Student viewing their own program or admin viewing unassigned program
+        sessions = await _sessionService.listSessions(
+          programId: widget.program.id,
+          limit: 100,
+        );
+      }
+
       setState(() {
         _sessions = sessions;
         _isLoadingSessions = false;
@@ -138,9 +160,8 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
             ),
           ],
         ],
-        bottom: widget.program.isTemplate
-            ? null
-            : TabBar(
+        bottom: (!widget.program.isTemplate || _isAdmin())
+            ? TabBar(
                 controller: _tabController,
                 indicatorColor: Colors.white,
                 indicatorWeight: 3,
@@ -151,26 +172,27 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
                   Tab(text: 'Sessions'),
                   Tab(text: 'Submissions'),
                 ],
-              ),
+              )
+            : null,
       ),
       body: Column(
         children: [
           // Tab content
           Expanded(
-            child: widget.program.isTemplate
-                ? _buildOverviewTab()
-                : TabBarView(
+            child: (!widget.program.isTemplate || _isAdmin())
+                ? TabBarView(
                     controller: _tabController,
                     children: [
                       _buildOverviewTab(),
                       _buildSessionsTab(),
                       _buildSubmissionsTab(),
                     ],
-                  ),
+                  )
+                : _buildOverviewTab(),
           ),
 
-          // Fixed bottom action button
-          if (!widget.program.isTemplate)
+          // Fixed bottom action button - only show for students on their programs
+          if (!widget.program.isTemplate && !_isAdmin())
             Padding(
               padding: const EdgeInsets.all(20),
               child: SafeArea(
@@ -251,6 +273,19 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
                     ),
                   ],
                 ),
+                // Show repetitions for assigned programs
+                if (widget.program.repetitionsPlanned != null) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      _buildInfoChip(
+                        Icons.repeat,
+                        'Progress: ${widget.program.repetitionsCompleted ?? 0}/${widget.program.repetitionsPlanned}',
+                        burgundy,
+                      ),
+                    ],
+                  ),
+                ],
                 if (widget.program.tags.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Wrap(
@@ -340,6 +375,30 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
 
     return Column(
       children: [
+        // Admin viewing student's sessions banner
+        if (_isAdmin() && widget.program.creatorName != null && widget.program.ownedBy != null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            color: burgundy.withValues(alpha: 0.1),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: burgundy, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Viewing ${widget.program.creatorName}\'s practice sessions',
+                    style: TextStyle(
+                      color: burgundy,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
         // Calendar
         Container(
           margin: const EdgeInsets.all(16),
@@ -520,13 +579,15 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
                                   color: Colors.grey.shade400,
                                 ),
                                 onTap: () async {
+                                  // Admins get read-only view, students get edit view
+                                  final screen = _isAdmin()
+                                      ? SessionDetailScreen(sessionId: session.id)
+                                      : SessionEditScreen(sessionId: session.id);
+
                                   final result = await Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) => SessionEditScreen(
-                                        sessionId: session.id,
-                                      ),
-                                    ),
+                                    MaterialPageRoute(builder: (context) => screen),
                                   );
+
                                   if (result == true) {
                                     setState(() => _hasChanges = true);
                                     _loadSessions();

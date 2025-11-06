@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/xuangong/backend/internal/models"
 	"github.com/xuangong/backend/pkg/testutil"
 )
 

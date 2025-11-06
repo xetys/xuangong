@@ -74,7 +74,9 @@ class _SessionEditScreenState extends State<SessionEditScreen> {
 
         // Load existing rep counts
         for (var log in session.exerciseLogs) {
-          _exerciseReps[log.exerciseId] = log.repetitionsCompleted;
+          if (log.exerciseId != null) {
+            _exerciseReps[log.exerciseId!] = log.repetitionsCompleted;
+          }
         }
       } else if (widget.initialProgramId != null) {
         // Creating new session with pre-selected program

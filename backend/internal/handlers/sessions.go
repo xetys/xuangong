@@ -125,7 +125,14 @@ func (h *SessionHandler) GetSession(c *gin.Context) {
 		return
 	}
 
-	session, err := h.sessionService.GetSession(c.Request.Context(), sessionID, userID)
+	roleStr, err := middleware.GetUserRole(c)
+	if err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+	role := models.UserRole(roleStr)
+
+	session, err := h.sessionService.GetSession(c.Request.Context(), sessionID, userID, role)
 	if err != nil {
 		respondWithAppError(c, err)
 		return
@@ -404,7 +411,7 @@ func (h *SessionHandler) DeleteSession(c *gin.Context) {
 // @Security BearerAuth
 func (h *SessionHandler) GetUserSessions(c *gin.Context) {
 	// Parse target user ID from URL path
-	targetUserID, err := uuid.Parse(c.Param("user_id"))
+	targetUserID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		respondWithError(c, appErrors.NewBadRequestError("Invalid user ID"))
 		return

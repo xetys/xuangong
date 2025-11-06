@@ -36,7 +36,7 @@ func (s *SessionService) StartSession(ctx context.Context, userID, programID uui
 	return session, nil
 }
 
-func (s *SessionService) GetSession(ctx context.Context, sessionID, userID uuid.UUID) (*models.SessionWithLogs, error) {
+func (s *SessionService) GetSession(ctx context.Context, sessionID, userID uuid.UUID, role models.UserRole) (*models.SessionWithLogs, error) {
 	session, err := s.sessionRepo.GetByID(ctx, sessionID)
 	if err != nil {
 		return nil, appErrors.NewInternalError("Failed to fetch session").WithError(err)
@@ -45,8 +45,8 @@ func (s *SessionService) GetSession(ctx context.Context, sessionID, userID uuid.
 		return nil, appErrors.NewNotFoundError("Session")
 	}
 
-	// Verify user owns this session
-	if session.UserID != userID {
+	// Verify user owns this session (admins can view any session)
+	if role != models.RoleAdmin && session.UserID != userID {
 		return nil, appErrors.NewAuthorizationError("You don't have access to this session")
 	}
 

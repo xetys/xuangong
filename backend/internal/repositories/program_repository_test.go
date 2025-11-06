@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/xuangong/backend/internal/models"
 	"github.com/xuangong/backend/pkg/testutil"
 )
 
@@ -277,7 +276,7 @@ func TestProgramRepository_GetUserPrograms_ExcludesDeleted(t *testing.T) {
 	}
 
 	// GetUserPrograms should only return active programs
-	programs, err := repo.GetUserPrograms(ctx, student.ID)
+	programs, err := repo.GetUserPrograms(ctx, student.ID, true)
 	if err != nil {
 		t.Fatalf("GetUserPrograms() error = %v", err)
 	}

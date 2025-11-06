@@ -73,4 +73,15 @@ class UserService {
     final List<dynamic> programsJson = data['programs'] ?? [];
     return programsJson.map((json) => Program.fromJson(json)).toList();
   }
+
+  /// Update user role (admin only)
+  Future<void> updateUserRole({
+    required String userId,
+    required String role, // 'admin' or 'student'
+  }) async {
+    await _apiClient.put(
+      '${ApiConfig.apiBase}/users/$userId/role',
+      {'role': role},
+    );
+  }
 }

@@ -1,8 +1,91 @@
 # Recent Work Log
 
-*Last updated: 2025-11-05*
+*Last updated: 2025-11-06*
 
 This file tracks the most recent changes to the codebase. Keep this updated after significant work.
+
+---
+
+## 2025-11-06: Admin Features - Flutter Integration
+
+**Status**: ✅ Complete - Ready for Testing
+
+### Changes
+1. **Backend Fixes for Admin Features**
+   - Added missing routes: `GET /api/v1/users/:id/sessions` and `PUT /api/v1/users/:id/role`
+   - Fixed UserService to fetch exercises for programs (added exerciseRepo dependency)
+   - Updated session authorization to allow admins to view any user's sessions
+   - Fixed GetUserSessions handler parameter mismatch (`:id` route vs `user_id` param)
+
+2. **Flutter Service Updates**
+   - Added `getUserSessions()` to SessionService for fetching any user's sessions
+   - Added `updateUserRole()` to UserService for role management
+   - Updated ExerciseLog model with all backend fields (startedAt, completedAt, etc.)
+
+3. **Admin Session Viewing**
+   - Created new SessionDetailScreen (read-only view for admins)
+   - Updated ProgramDetailScreen to route admins to detail view, students to edit view
+   - Fixed student_detail_screen to load current admin user and navigate to full program view
+
+4. **Bug Fixes**
+   - Fixed programs showing 0 exercises by fetching exercises in GetUserPrograms
+   - Fixed nullable exerciseId handling in session_edit_screen
+   - Fixed authorization for admin viewing student sessions
+
+### Files Modified
+**Backend**:
+- `backend/cmd/api/main.go` - Routes and UserService initialization (lines 52, 194-195)
+- `backend/internal/services/user_service.go` - Added exerciseRepo, updated GetUserPrograms
+- `backend/internal/services/session_service.go` - Added role parameter to GetSession (line 39)
+- `backend/internal/handlers/sessions.go` - Role extraction and parameter fix (lines 128-133, 407)
+
+**Flutter**:
+- `app/lib/services/session_service.dart` - Added getUserSessions (lines 141-176)
+- `app/lib/services/user_service.dart` - Added updateUserRole (lines 77-86)
+- `app/lib/screens/student_detail_screen.dart` - Load admin user, navigate to ProgramDetailScreen
+- `app/lib/screens/program_detail_screen.dart` - Session routing based on role (lines 581-595)
+- `app/lib/models/session.dart` - Updated ExerciseLog with all backend fields
+- `app/lib/screens/session_edit_screen.dart` - Fixed nullable exerciseId (lines 76-80)
+
+**Flutter (New Files)**:
+- `app/lib/screens/session_detail_screen.dart` - Read-only session view for admins
+
+### Technical Details
+**Backend Authorization Enhancement**:
+```go
+// Verify user owns this session (admins can view any session)
+if role != models.RoleAdmin && session.UserID != userID {
+    return nil, appErrors.NewAuthorizationError("You don't have access to this session")
+}
+```
+
+**Role-Based UI Routing**:
+```dart
+final screen = _isAdmin()
+    ? SessionDetailScreen(sessionId: session.id)  // Read-only for admins
+    : SessionEditScreen(sessionId: session.id);   // Editable for students
+```
+
+### Issues Resolved
+1. Missing backend routes causing 404 errors
+2. Programs loading without exercises (0 exercises shown)
+3. Parameter mismatch in GetUserSessions handler
+4. Model synchronization between backend and Flutter
+5. Authorization blocking admin session access
+6. Nullable type errors in session editing
+
+### Testing Required
+1. Admin viewing student sessions (across different students)
+2. Admin viewing session details (read-only view)
+3. Student viewing own sessions (should get editable view)
+4. Program deletion by admin
+5. Role updates (student → admin, admin → student)
+6. Edge case: Last admin role update should fail
+
+### Related Work
+- Backend TDD implementation completed in previous session (Tasks 1-10)
+- This session focused on Flutter integration (Tasks 11-14)
+- Manual testing (Task 15) ready to begin
 
 ---
 
