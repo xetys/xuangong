@@ -388,3 +388,105 @@ func (h *SessionHandler) DeleteSession(c *gin.Context) {
 		"message": "Session deleted successfully",
 	})
 }
+
+// GetUserSessions godoc
+// @Summary Get sessions for a specific user (admin only, or own sessions)
+// @Tags sessions
+// @Produce json
+// @Param user_id path string true "User ID"
+// @Param program_id query string false "Filter by program ID"
+// @Param start_date query string false "Filter by start date (YYYY-MM-DD)"
+// @Param end_date query string false "Filter by end date (YYYY-MM-DD)"
+// @Param limit query int false "Limit (default 20)"
+// @Param offset query int false "Offset (default 0)"
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/users/{user_id}/sessions [get]
+// @Security BearerAuth
+func (h *SessionHandler) GetUserSessions(c *gin.Context) {
+	// Parse target user ID from URL path
+	targetUserID, err := uuid.Parse(c.Param("user_id"))
+	if err != nil {
+		respondWithError(c, appErrors.NewBadRequestError("Invalid user ID"))
+		return
+	}
+
+	// Get requesting user info from context
+	requestingUserID, err := middleware.GetUserID(c)
+	if err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	requestingRoleStr, err := middleware.GetUserRole(c)
+	if err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+	requestingRole := models.UserRole(requestingRoleStr)
+
+	// Parse query parameters
+	var query validators.ListSessionsQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		respondWithError(c, appErrors.NewBadRequestError("Invalid query parameters"))
+		return
+	}
+
+	// Set defaults
+	if query.Limit == 0 {
+		query.Limit = 20
+	}
+
+	// Parse optional filters
+	var programID *uuid.UUID
+	if query.ProgramID != nil {
+		id, err := uuid.Parse(*query.ProgramID)
+		if err != nil {
+			respondWithError(c, appErrors.NewBadRequestError("Invalid program ID"))
+			return
+		}
+		programID = &id
+	}
+
+	var startDate, endDate *time.Time
+	if query.StartDate != nil {
+		t, err := time.Parse("2006-01-02", *query.StartDate)
+		if err != nil {
+			respondWithError(c, appErrors.NewBadRequestError("Invalid start date format"))
+			return
+		}
+		startDate = &t
+	}
+	if query.EndDate != nil {
+		t, err := time.Parse("2006-01-02", *query.EndDate)
+		if err != nil {
+			respondWithError(c, appErrors.NewBadRequestError("Invalid end date format"))
+			return
+		}
+		// End of day (23:59:59.999999999)
+		endOfDay := time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 999999999, t.Location())
+		endDate = &endOfDay
+	}
+
+	// Call service with authorization
+	sessions, err := h.sessionService.GetUserSessions(
+		c.Request.Context(),
+		requestingUserID,
+		requestingRole,
+		targetUserID,
+		programID,
+		startDate,
+		endDate,
+		query.Limit,
+		query.Offset,
+	)
+	if err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"sessions": sessions,
+		"limit":    query.Limit,
+		"offset":   query.Offset,
+	})
+}

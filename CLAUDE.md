@@ -1,5 +1,63 @@
 # Xuan Gong (玄功) - Martial Arts Training App
 
+---
+
+## ⚠️ MANDATORY STARTUP SEQUENCE ⚠️
+
+**BEFORE responding to ANY user request, you MUST:**
+
+1. **Load TODOs** - Read and parse `.claude/todos.json` and load into TodoWrite tool
+2. **Read Context** - Review `.claude/tasks/context/recent-work.md` to understand recent changes
+3. **Check Agents** - Determine if this request requires agent consultation (see Agent Policy below)
+
+---
+
+## 🤖 AGENT USAGE POLICY (STRICT)
+
+**Agents are for PLANNING and RESEARCH ONLY. They MUST NOT implement changes.**
+
+### When to Use Agents (AUTOMATIC TRIGGERS)
+
+**Use `go-backend-architect` agent when:**
+- Any Go code changes in `backend/` directory
+- Database schema or migration work
+- API endpoint design or modification
+- Backend testing or test structure
+- Performance optimization of Go code
+
+**Use `flutter-dev-expert` agent when:**
+- Any Dart/Flutter code changes in `app/` directory
+- UI/UX implementation or modification
+- State management decisions
+- Widget architecture or layout
+- Platform-specific features
+
+**Use `Explore` agent when:**
+- Broad codebase exploration needed
+- Understanding how systems connect
+- Finding all instances of a pattern
+- Architectural understanding
+
+### Agent Workflow
+
+1. **IDENTIFY** - Does request match agent triggers above?
+2. **CONSULT** - If yes, launch appropriate agent for plan/research
+3. **REVIEW** - Wait for agent's plan/findings
+4. **IMPLEMENT** - Main Claude executes the implementation
+5. **DOCUMENT** - Update session logs and context
+
+**Agents can:**
+- ✅ Read files, search code, gather information
+- ✅ Create implementation plans and recommendations
+- ✅ Use readonly tools (Read, Glob, Grep, WebFetch)
+
+**Agents cannot:**
+- ❌ Edit or write files
+- ❌ Run commands that modify state
+- ❌ Implement changes directly
+
+---
+
 ## Project Context
 
 Xuan Gong is a specialized training application for the Xuan Gong Fu Academy in Berlin, a school teaching Wudang internal martial arts (Tai Chi, Ba Gua Zhang, Xing Yi Quan, Qi Gong). The app replaces generic interval timers with a purpose-built solution for traditional martial arts practice.
@@ -132,46 +190,11 @@ xuangong/
 
 ## Session & Context Management
 
-In this section we define how agents are used to manage sessions and context.
-
-### Agents
-
-We have the following agents:
-- flutter-dev-expert
-- golang-backend-architect
-
-ALWAYS try to get advice when planning code changes.
-
-### Context-First Workflow
-Before starting any work, Claude Code should:
-1. **Read `.claude/tasks/context/recent-work.md`** - Understand what was done recently
-2. **Check relevant session files** in `.claude/tasks/sessions/` - Review past conversations
-3. **Consult `.claude/tasks/context/decisions.md`** - Understand architectural decisions
-
-### Working with subagents
-
-Before starting any work, Claude Code should:
-1. check all personal and project agents
-2. trying to decide, if the prompt needs to be answered by a subagent
-3. always prefer subagent for the specific contexts
-4. subagents are not used for performing action, but to propose plans
-
-### Subagent Usage Policy (STRICT)
-
-**Subagents are for RESEARCH ONLY. They MUST NOT implement or make changes.**
-
-When using the Task tool with Plan or Explore subagents:
-- ✅ **ALLOWED**: Read files, search code, gather information, create implementation plans
-- ❌ **FORBIDDEN**: Edit files, write files, run commands that modify state
-- **Main agent responsibility**: Execute implementation based on subagent's research/plan
-
-**Exception**: Readonly tools (Read, Glob, Grep, WebFetch) are always allowed for all agents.
-
-**Rationale**: This ensures:
-- Main agent maintains full context and control
-- Session continuity and proper documentation
-- Consistent code quality and decision tracking
-- Clear separation between research and implementation
+### Context Files
+- `.claude/tasks/context/recent-work.md` - Rolling log of recent changes
+- `.claude/tasks/context/decisions.md` - Architectural and technical decisions
+- `.claude/tasks/context/features.md` - Feature documentation
+- `.claude/tasks/sessions/` - Individual session logs
 
 ### Session Documentation
 

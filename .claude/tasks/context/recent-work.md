@@ -6,6 +6,40 @@ This file tracks the most recent changes to the codebase. Keep this updated afte
 
 ---
 
+## 2025-11-05: Logout Bug Fix
+
+**Status**: ✅ Fixed - Ready for Testing
+
+### Bug Description
+After logout in production web app, user cannot log back in because app tries to connect to localhost instead of production API URL.
+
+### Root Cause
+FlutterSecureStorage's `deleteAll()` on web platform clears ALL localStorage items, including the Docker-injected `API_URL` configuration key. After logout, `api_config_web.dart` can't find the URL and falls back to `http://localhost:8080`.
+
+### Solution (Recommended)
+Replace `StorageService.clearAll()` implementation with explicit individual key deletions:
+- Delete only: `access_token`, `refresh_token`, `user_id`, `user_email`
+- Preserve: `API_URL` (environment configuration)
+
+### Implementation
+- Modified `app/lib/services/storage_service.dart` line 49-58
+- Replaced `deleteAll()` with individual key deletions
+- Added clear warning comments for future maintainers
+- Preserves `API_URL` in localStorage during logout
+
+### Documentation
+- Full analysis: `.claude/docs/app/logout-bug-analysis-and-fix.md`
+- 4 options evaluated, Option A (individual deletion) implemented
+- Single file change, zero risk
+
+### Testing Required
+1. Login to production web app
+2. Logout
+3. Login again - should use production URL (not localhost)
+4. Verify no errors in console
+
+---
+
 ## 2025-11-05: YouTube Video Links & Alpha13 Deployment
 
 **Status**: ✅ Complete (deployed as alpha13)

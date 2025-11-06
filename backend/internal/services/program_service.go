@@ -171,6 +171,34 @@ func (s *ProgramService) Delete(ctx context.Context, id uuid.UUID, userID uuid.U
 	return nil
 }
 
+// SoftDelete marks a program as deleted (soft delete) with role-based authorization
+// Admins can delete any program, owners can delete their own programs
+func (s *ProgramService) SoftDelete(ctx context.Context, id uuid.UUID, userID uuid.UUID, userRole models.UserRole) error {
+	// Fetch program (this will exclude already soft-deleted programs)
+	existing, err := s.programRepo.GetByID(ctx, id)
+	if err != nil {
+		return appErrors.NewInternalError("Failed to fetch program").WithError(err)
+	}
+	if existing == nil {
+		return appErrors.NewNotFoundError("Program")
+	}
+
+	// Authorization check: admin can delete any program, owner can delete their own
+	isAdmin := userRole == models.RoleAdmin
+	isOwner := existing.OwnedBy != nil && *existing.OwnedBy == userID
+
+	if !isAdmin && !isOwner {
+		return appErrors.NewAuthorizationError("You don't have permission to delete this program")
+	}
+
+	// Perform soft delete
+	if err := s.programRepo.SoftDelete(ctx, id); err != nil {
+		return appErrors.NewInternalError("Failed to delete program").WithError(err)
+	}
+
+	return nil
+}
+
 func (s *ProgramService) AssignToUsers(ctx context.Context, programID, assignedBy uuid.UUID, userIDs []uuid.UUID) error {
 	// Verify program exists
 	program, err := s.programRepo.GetByID(ctx, programID)

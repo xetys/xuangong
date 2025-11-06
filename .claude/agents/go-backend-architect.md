@@ -25,6 +25,7 @@ When writing Go code, you strictly adhere to:
 - Code organization: clear separation of concerns (handlers, services, repositories)
 - Performance: efficient resource usage, proper context handling, connection pooling
 - Security: input validation, SQL injection prevention, secure password handling
+- Favors TDD as an approach for developing new features/
 
 ## API Design Excellence
 

@@ -38,7 +38,39 @@ func (r *ProgramRepository) Create(ctx context.Context, program *models.Program)
 func (r *ProgramRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Program, error) {
 	var program models.Program
 	query := `
-		SELECT id, name, description, owned_by, is_template, is_public, repetitions_planned, repetitions_completed, tags, metadata, created_at, updated_at
+		SELECT id, name, description, owned_by, is_template, is_public, repetitions_planned, repetitions_completed, tags, metadata, created_at, updated_at, deleted_at
+		FROM programs
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+	err := r.db.QueryRow(ctx, query, id).Scan(
+		&program.ID,
+		&program.Name,
+		&program.Description,
+		&program.OwnedBy,
+		&program.IsTemplate,
+		&program.IsPublic,
+		&program.RepetitionsPlanned,
+		&program.RepetitionsCompleted,
+		&program.Tags,
+		&program.Metadata,
+		&program.CreatedAt,
+		&program.UpdatedAt,
+		&program.DeletedAt,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &program, nil
+}
+
+// GetByIDIncludingDeleted retrieves a program by ID, including soft-deleted programs
+func (r *ProgramRepository) GetByIDIncludingDeleted(ctx context.Context, id uuid.UUID) (*models.Program, error) {
+	var program models.Program
+	query := `
+		SELECT id, name, description, owned_by, is_template, is_public, repetitions_planned, repetitions_completed, tags, metadata, created_at, updated_at, deleted_at
 		FROM programs
 		WHERE id = $1
 	`
@@ -55,6 +87,7 @@ func (r *ProgramRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.
 		&program.Metadata,
 		&program.CreatedAt,
 		&program.UpdatedAt,
+		&program.DeletedAt,
 	)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -73,6 +106,7 @@ func (r *ProgramRepository) List(ctx context.Context, isTemplate, isPublic *bool
 		LEFT JOIN users u ON p.owned_by = u.id
 		WHERE ($1::boolean IS NULL OR p.is_template = $1)
 		AND ($2::boolean IS NULL OR p.is_public = $2)
+		AND p.deleted_at IS NULL
 		ORDER BY p.created_at DESC
 		LIMIT $3 OFFSET $4
 	`
@@ -91,6 +125,46 @@ func (r *ProgramRepository) List(ctx context.Context, isTemplate, isPublic *bool
 			&program.Description,
 			&program.OwnedBy,
 			&program.CreatorName,
+			&program.IsTemplate,
+			&program.IsPublic,
+			&program.RepetitionsPlanned,
+			&program.RepetitionsCompleted,
+			&program.Tags,
+			&program.Metadata,
+			&program.CreatedAt,
+			&program.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		programs = append(programs, program)
+	}
+
+	return programs, rows.Err()
+}
+
+// GetByOwner retrieves all programs owned by a specific user (excluding soft-deleted)
+func (r *ProgramRepository) GetByOwner(ctx context.Context, ownerID uuid.UUID) ([]models.Program, error) {
+	query := `
+		SELECT id, name, description, owned_by, is_template, is_public, repetitions_planned, repetitions_completed, tags, metadata, created_at, updated_at
+		FROM programs
+		WHERE owned_by = $1 AND deleted_at IS NULL
+		ORDER BY created_at DESC
+	`
+	rows, err := r.db.Query(ctx, query, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	programs := make([]models.Program, 0)
+	for rows.Next() {
+		var program models.Program
+		err := rows.Scan(
+			&program.ID,
+			&program.Name,
+			&program.Description,
+			&program.OwnedBy,
 			&program.IsTemplate,
 			&program.IsPublic,
 			&program.RepetitionsPlanned,
@@ -204,6 +278,7 @@ func (r *ProgramRepository) GetUserProgramsWithDetails(ctx context.Context, user
 		WHERE ((up.user_id = $1 AND ($2 = false OR up.is_active = true))
 		   OR (p.owned_by = $1))
 		   AND p.is_template = false
+		   AND p.deleted_at IS NULL
 		ORDER BY p.created_at DESC
 	`
 	rows, err := r.db.Query(ctx, query, userID, activeOnly)
@@ -237,6 +312,41 @@ func (r *ProgramRepository) GetUserProgramsWithDetails(ctx context.Context, user
 	}
 
 	return programs, rows.Err()
+}
+
+// SoftDelete marks a program as deleted by setting the deleted_at timestamp
+func (r *ProgramRepository) SoftDelete(ctx context.Context, id uuid.UUID) error {
+	// First check if program exists and is not already deleted
+	var deletedAt *string
+	checkQuery := `SELECT deleted_at FROM programs WHERE id = $1`
+	err := r.db.QueryRow(ctx, checkQuery, id).Scan(&deletedAt)
+	if err == pgx.ErrNoRows {
+		return pgx.ErrNoRows // Program doesn't exist
+	}
+	if err != nil {
+		return err
+	}
+	if deletedAt != nil {
+		return pgx.ErrNoRows // Program already deleted - treat as "not found"
+	}
+
+	// Perform soft delete
+	query := `
+		UPDATE programs
+		SET deleted_at = CURRENT_TIMESTAMP
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+	result, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return pgx.ErrNoRows // No rows updated
+	}
+
+	return nil
 }
 
 // UpdateRepetitionsCompleted updates the repetitions_completed count for a program

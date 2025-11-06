@@ -266,3 +266,52 @@ func (r *SessionRepository) Delete(ctx context.Context, sessionID uuid.UUID) err
 	_, err = r.db.Exec(ctx, `DELETE FROM practice_sessions WHERE id = $1`, sessionID)
 	return err
 }
+
+// ListByUserID retrieves sessions for a specific user with optional filtering
+// This method is used by admins to view any user's sessions
+func (r *SessionRepository) ListByUserID(ctx context.Context, userID uuid.UUID, programID *uuid.UUID, startDate, endDate *time.Time, limit, offset int) ([]models.PracticeSession, error) {
+	query := `
+		SELECT ps.id, ps.user_id, ps.program_id, p.name as program_name, ps.started_at, ps.completed_at,
+		       ps.total_duration_seconds, ps.completion_rate, ps.notes, ps.device_info
+		FROM practice_sessions ps
+		LEFT JOIN programs p ON ps.program_id = p.id
+		WHERE ps.user_id = $1
+		AND ($2::uuid IS NULL OR ps.program_id = $2)
+		AND ($3::timestamp IS NULL OR ps.started_at >= $3)
+		AND ($4::timestamp IS NULL OR ps.started_at <= $4)
+		ORDER BY ps.started_at DESC
+		LIMIT $5 OFFSET $6
+	`
+	rows, err := r.db.Query(ctx, query, userID, programID, startDate, endDate, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	sessions := make([]models.PracticeSession, 0)
+	for rows.Next() {
+		var session models.PracticeSession
+		var programName sql.NullString
+		err := rows.Scan(
+			&session.ID,
+			&session.UserID,
+			&session.ProgramID,
+			&programName,
+			&session.StartedAt,
+			&session.CompletedAt,
+			&session.TotalDurationSeconds,
+			&session.CompletionRate,
+			&session.Notes,
+			&session.DeviceInfo,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if programName.Valid {
+			session.ProgramName = &programName.String
+		}
+		sessions = append(sessions, session)
+	}
+
+	return sessions, rows.Err()
+}

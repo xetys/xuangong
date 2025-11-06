@@ -267,7 +267,7 @@ func (h *ProgramHandler) UpdateProgram(c *gin.Context) {
 }
 
 // DeleteProgram godoc
-// @Summary Delete a program
+// @Summary Delete a program (soft delete)
 // @Tags programs
 // @Param id path string true "Program ID"
 // @Success 200 {object} map[string]interface{}
@@ -287,7 +287,16 @@ func (h *ProgramHandler) DeleteProgram(c *gin.Context) {
 		return
 	}
 
-	if err := h.programService.Delete(c.Request.Context(), id, userID); err != nil {
+	// Get user role for authorization check
+	userRoleStr, err := middleware.GetUserRole(c)
+	if err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+	userRole := models.UserRole(userRoleStr)
+
+	// Use soft delete instead of hard delete
+	if err := h.programService.SoftDelete(c.Request.Context(), id, userID, userRole); err != nil {
 		respondWithAppError(c, err)
 		return
 	}

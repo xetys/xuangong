@@ -46,8 +46,15 @@ class StorageService {
   }
 
   // Clear all stored data (logout)
+  // NOTE: We explicitly delete individual keys instead of using deleteAll()
+  // because on web, deleteAll() clears ALL localStorage items, including
+  // the API_URL injected by Docker at runtime. This would break login after logout.
   Future<void> clearAll() async {
-    await _storage.deleteAll();
+    await _storage.delete(key: _keyAccessToken);
+    await _storage.delete(key: _keyRefreshToken);
+    await _storage.delete(key: _keyUserId);
+    await _storage.delete(key: _keyUserEmail);
+    // IMPORTANT: If you add new keys to this class, remember to delete them here too!
   }
 
   // Check if user is logged in

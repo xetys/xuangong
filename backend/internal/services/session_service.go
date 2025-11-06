@@ -183,3 +183,36 @@ func (s *SessionService) DeleteSession(ctx context.Context, sessionID, userID uu
 
 	return nil
 }
+
+// GetUserSessions retrieves sessions for a specific user with role-based authorization
+// Admins can view any user's sessions, students can only view their own
+func (s *SessionService) GetUserSessions(ctx context.Context, requestingUserID uuid.UUID, requestingRole models.UserRole, targetUserID uuid.UUID, programID *uuid.UUID, startDate, endDate *time.Time, limit, offset int) ([]models.SessionWithLogs, error) {
+	// Authorization check: admin can view any user, student can only view self
+	isAdmin := requestingRole == models.RoleAdmin
+	isSelf := requestingUserID == targetUserID
+
+	if !isAdmin && !isSelf {
+		return nil, appErrors.NewAuthorizationError("You don't have permission to view these sessions")
+	}
+
+	// Fetch sessions from repository
+	sessions, err := s.sessionRepo.ListByUserID(ctx, targetUserID, programID, startDate, endDate, limit, offset)
+	if err != nil {
+		return nil, appErrors.NewInternalError("Failed to fetch user sessions").WithError(err)
+	}
+
+	// Convert to SessionWithLogs by fetching exercise logs for each session
+	sessionsWithLogs := make([]models.SessionWithLogs, 0, len(sessions))
+	for _, session := range sessions {
+		logs, err := s.sessionRepo.GetExerciseLogs(ctx, session.ID)
+		if err != nil {
+			return nil, appErrors.NewInternalError("Failed to fetch exercise logs").WithError(err)
+		}
+		sessionsWithLogs = append(sessionsWithLogs, models.SessionWithLogs{
+			Session:      session,
+			ExerciseLogs: logs,
+		})
+	}
+
+	return sessionsWithLogs, nil
+}

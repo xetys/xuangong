@@ -1,0 +1,99 @@
+{
+  "todos": [
+    {
+      "content": "Create test utilities package (db.go, fixtures.go, mocks.go)",
+      "status": "completed",
+      "activeForm": "Creating test utilities package"
+    },
+    {
+      "content": "Write all soft delete tests - RED phase (migration, repository, service, handler tests)",
+      "status": "completed",
+      "activeForm": "Writing soft delete tests"
+    },
+    {
+      "content": "Implement soft delete functionality - GREEN phase (migration, repository, service, handler)",
+      "status": "completed",
+      "activeForm": "Implementing soft delete functionality"
+    },
+    {
+      "content": "Refactor soft delete code - REFACTOR phase (clean up, optimize queries, verify coverage)",
+      "status": "completed",
+      "activeForm": "Refactoring soft delete code"
+    },
+    {
+      "content": "Write all admin sessions tests - RED phase (repository, service, handler tests)",
+      "status": "completed",
+      "activeForm": "Writing admin sessions tests"
+    },
+    {
+      "content": "Implement admin sessions endpoint - GREEN phase (repository, service, handler, middleware)",
+      "status": "completed",
+      "activeForm": "Implementing admin sessions endpoint"
+    },
+    {
+      "content": "Refactor admin sessions code - REFACTOR phase (query builder, error handling, coverage)",
+      "status": "completed",
+      "activeForm": "Refactoring admin sessions code"
+    },
+    {
+      "content": "Write all role update tests - RED phase (repository, service, handler tests)",
+      "status": "pending",
+      "activeForm": "Writing role update tests"
+    },
+    {
+      "content": "Implement role update logic - GREEN phase (CountAdmins, business rules, handler)",
+      "status": "pending",
+      "activeForm": "Implementing role update logic"
+    },
+    {
+      "content": "Refactor role management code - REFACTOR phase (validation functions, error messages)",
+      "status": "pending",
+      "activeForm": "Refactoring role management code"
+    },
+    {
+      "content": "Update Flutter API client services (deleteProgram, getUserSessions, updateUserRole)",
+      "status": "pending",
+      "activeForm": "Updating Flutter API client services"
+    },
+    {
+      "content": "Restore program overview tab for admins (hide start button, add delete/edit, show repetitions)",
+      "status": "pending",
+      "activeForm": "Restoring program overview tab for admins"
+    },
+    {
+      "content": "Show student sessions in program detail screen (pass student ID, call API, add banner)",
+      "status": "pending",
+      "activeForm": "Showing student sessions in program detail"
+    },
+    {
+      "content": "Add admin role control to student edit screen (remove condition, wire API, show feedback)",
+      "status": "pending",
+      "activeForm": "Adding admin role control to student edit"
+    },
+    {
+      "content": "Manual testing of all admin features (deletion, sessions, roles, both user types)",
+      "status": "pending",
+      "activeForm": "Testing all admin features manually"
+    },
+    {
+      "content": "Update documentation and create session log (recent-work.md, features.md, session file)",
+      "status": "pending",
+      "activeForm": "Updating documentation and session log"
+    },
+    {
+      "content": "FUTURE: Create all-sessions UI view for students (admin can see complete practice history)",
+      "status": "pending",
+      "activeForm": "Creating all-sessions UI view"
+    },
+    {
+      "content": "FUTURE: Add restore/undelete functionality for archived programs",
+      "status": "pending",
+      "activeForm": "Adding restore/undelete functionality"
+    },
+    {
+      "content": "FUTURE: Add audit log for role changes (track who promoted/demoted whom)",
+      "status": "pending",
+      "activeForm": "Adding audit log for role changes"
+    }
+  ]
+}
