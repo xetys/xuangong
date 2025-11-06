@@ -339,6 +339,100 @@ func AssignProgramToUser(t *testing.T, pool *pgxpool.Pool, userID, programID, as
 	}
 }
 
+// CreateTestSubmission creates a submission in the database and returns it.
+func CreateTestSubmission(t *testing.T, pool *pgxpool.Pool, programID, userID uuid.UUID, title string) *models.Submission {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	submission := &models.Submission{
+		ID:        uuid.New(),
+		ProgramID: programID,
+		UserID:    userID,
+		Title:     title,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	query := `
+		INSERT INTO submissions (id, program_id, user_id, title, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`
+
+	_, err := pool.Exec(ctx, query,
+		submission.ID,
+		submission.ProgramID,
+		submission.UserID,
+		submission.Title,
+		submission.CreatedAt,
+		submission.UpdatedAt,
+	)
+
+	if err != nil {
+		t.Fatalf("Failed to create test submission: %v", err)
+	}
+
+	return submission
+}
+
+// CreateTestMessage creates a submission message in the database and returns it.
+func CreateTestMessage(t *testing.T, pool *pgxpool.Pool, submissionID, userID uuid.UUID, content string, youtubeURL *string) *models.SubmissionMessage {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	message := &models.SubmissionMessage{
+		ID:           uuid.New(),
+		SubmissionID: submissionID,
+		UserID:       userID,
+		Content:      content,
+		YouTubeURL:   youtubeURL,
+		CreatedAt:    time.Now(),
+	}
+
+	query := `
+		INSERT INTO submission_messages (id, submission_id, user_id, content, youtube_url, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`
+
+	_, err := pool.Exec(ctx, query,
+		message.ID,
+		message.SubmissionID,
+		message.UserID,
+		message.Content,
+		message.YouTubeURL,
+		message.CreatedAt,
+	)
+
+	if err != nil {
+		t.Fatalf("Failed to create test message: %v", err)
+	}
+
+	return message
+}
+
+// MarkMessageAsRead marks a message as read by a user.
+func MarkMessageAsRead(t *testing.T, pool *pgxpool.Pool, userID, messageID uuid.UUID) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	query := `
+		INSERT INTO message_read_status (user_id, message_id, read_at)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (user_id, message_id) DO NOTHING
+	`
+
+	_, err := pool.Exec(ctx, query, userID, messageID, time.Now())
+
+	if err != nil {
+		t.Fatalf("Failed to mark message as read: %v", err)
+	}
+}
+
 // Helper functions
 
 func intPtr(i int) *int {

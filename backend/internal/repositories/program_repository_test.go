@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/xuangong/backend/internal/models"
 	"github.com/xuangong/backend/pkg/testutil"
 )
+
+var _ = time.Now // prevent unused import error
 
 func TestProgramRepository_SoftDelete(t *testing.T) {
 	pool := testutil.SetupTestDB(t)
@@ -277,7 +278,7 @@ func TestProgramRepository_GetUserPrograms_ExcludesDeleted(t *testing.T) {
 	}
 
 	// GetUserPrograms should only return active programs
-	programs, err := repo.GetUserPrograms(ctx, student.ID)
+	programs, err := repo.GetUserPrograms(ctx, student.ID, false)
 	if err != nil {
 		t.Fatalf("GetUserPrograms() error = %v", err)
 	}

@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/xuangong/backend/internal/models"
 	"github.com/xuangong/backend/pkg/testutil"
 )
+
+var _ = time.Now // prevent unused import error
 
 func TestSessionRepository_ListByUserID(t *testing.T) {
 	pool := testutil.SetupTestDB(t)

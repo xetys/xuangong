@@ -10,11 +10,16 @@ import (
 
 // respondWithError sends an error response
 func respondWithError(c *gin.Context, err *appErrors.AppError) {
-	// Log the full error including underlying error
+	// Log the full error including underlying error and request context
+	requestPath := c.Request.URL.Path
+	requestMethod := c.Request.Method
+
 	if err.Err != nil {
-		log.Printf("[ERROR] %s: %s (underlying error: %v)", err.Code, err.Message, err.Err)
+		log.Printf("[ERROR] %s %s - %s: %s (underlying error: %v)",
+			requestMethod, requestPath, err.Code, err.Message, err.Err)
 	} else {
-		log.Printf("[ERROR] %s: %s", err.Code, err.Message)
+		log.Printf("[ERROR] %s %s - %s: %s",
+			requestMethod, requestPath, err.Code, err.Message)
 	}
 
 	c.JSON(err.HTTPStatus, gin.H{

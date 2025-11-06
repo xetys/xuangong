@@ -2,11 +2,22 @@ package repositories
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xuangong/backend/internal/models"
+)
+
+// Sentinel errors for better error handling
+var (
+	ErrAccessDenied       = errors.New("access denied")
+	ErrSubmissionNotFound = errors.New("submission not found")
+	ErrMessageNotFound    = errors.New("message not found")
+	ErrAlreadyDeleted     = errors.New("submission not found or already deleted")
 )
 
 type SubmissionRepository struct {
@@ -17,171 +28,350 @@ func NewSubmissionRepository(db *pgxpool.Pool) *SubmissionRepository {
 	return &SubmissionRepository{db: db}
 }
 
-func (r *SubmissionRepository) Create(ctx context.Context, submission *models.VideoSubmission) error {
+// Create creates a new submission
+func (r *SubmissionRepository) Create(ctx context.Context, programID, userID uuid.UUID, title string) (*models.Submission, error) {
 	query := `
-		INSERT INTO video_submissions (
-			user_id, session_id, exercise_id, video_url, thumbnail_url,
-			duration_seconds, file_size_mb, status
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, submitted_at
+		INSERT INTO submissions (id, program_id, user_id, title, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, program_id, user_id, title, created_at, updated_at, deleted_at
 	`
-	return r.db.QueryRow(ctx, query,
+
+	submission := &models.Submission{
+		ID:        uuid.New(),
+		ProgramID: programID,
+		UserID:    userID,
+		Title:     title,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	err := r.db.QueryRow(ctx, query,
+		submission.ID,
+		submission.ProgramID,
 		submission.UserID,
-		submission.SessionID,
-		submission.ExerciseID,
-		submission.VideoURL,
-		submission.ThumbnailURL,
-		submission.DurationSeconds,
-		submission.FileSizeMB,
-		submission.Status,
-	).Scan(&submission.ID, &submission.SubmittedAt)
+		submission.Title,
+		submission.CreatedAt,
+		submission.UpdatedAt,
+	).Scan(
+		&submission.ID,
+		&submission.ProgramID,
+		&submission.UserID,
+		&submission.Title,
+		&submission.CreatedAt,
+		&submission.UpdatedAt,
+		&submission.DeletedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create submission: %w", err)
+	}
+
+	return submission, nil
 }
 
-func (r *SubmissionRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.VideoSubmission, error) {
-	var submission models.VideoSubmission
+// GetByID retrieves a submission by ID with access control
+func (r *SubmissionRepository) GetByID(ctx context.Context, id, userID uuid.UUID, isAdmin bool) (*models.Submission, error) {
 	query := `
-		SELECT id, user_id, session_id, exercise_id, video_url, thumbnail_url,
-		       duration_seconds, file_size_mb, status, submitted_at
-		FROM video_submissions
-		WHERE id = $1
+		SELECT id, program_id, user_id, title, created_at, updated_at, deleted_at
+		FROM submissions
+		WHERE id = $1 AND deleted_at IS NULL
 	`
+
+	var submission models.Submission
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&submission.ID,
+		&submission.ProgramID,
 		&submission.UserID,
-		&submission.SessionID,
-		&submission.ExerciseID,
-		&submission.VideoURL,
-		&submission.ThumbnailURL,
-		&submission.DurationSeconds,
-		&submission.FileSizeMB,
-		&submission.Status,
-		&submission.SubmittedAt,
+		&submission.Title,
+		&submission.CreatedAt,
+		&submission.UpdatedAt,
+		&submission.DeletedAt,
 	)
+
 	if err == pgx.ErrNoRows {
-		return nil, nil
+		return nil, ErrSubmissionNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get submission: %w", err)
 	}
+
+	// Access control: students can only see their own submissions
+	if !isAdmin && submission.UserID != userID {
+		return nil, ErrAccessDenied
+	}
+
 	return &submission, nil
 }
 
-func (r *SubmissionRepository) List(ctx context.Context, userID *uuid.UUID, status *models.SubmissionStatus, limit, offset int) ([]models.VideoSubmission, error) {
+// List retrieves submissions with filters and access control
+func (r *SubmissionRepository) List(ctx context.Context, programID *uuid.UUID, userID uuid.UUID, isAdmin bool, limit, offset int) ([]models.SubmissionListItem, error) {
+	// Optimized query using LATERAL join instead of subqueries for better performance
 	query := `
-		SELECT id, user_id, session_id, exercise_id, video_url, thumbnail_url,
-		       duration_seconds, file_size_mb, status, submitted_at
-		FROM video_submissions
-		WHERE ($1::uuid IS NULL OR user_id = $1)
-		AND ($2::varchar IS NULL OR status = $2)
-		ORDER BY submitted_at DESC
-		LIMIT $3 OFFSET $4
+		SELECT
+			s.id, s.program_id, s.user_id, s.title, s.created_at, s.updated_at, s.deleted_at,
+			p.name as program_name,
+			u.full_name as student_name,
+			u.email as student_email,
+			COUNT(DISTINCT sm.id) as message_count,
+			COUNT(DISTINCT CASE WHEN mrs.user_id IS NULL AND sm.user_id != $1 THEN sm.id END) as unread_count,
+			COALESCE(MAX(sm.created_at), s.created_at) as last_message_at,
+			COALESCE(lm.content, '') as last_message_text,
+			COALESCE(lm.author_name, u.full_name) as last_message_from
+		FROM submissions s
+		JOIN programs p ON s.program_id = p.id
+		JOIN users u ON s.user_id = u.id
+		LEFT JOIN submission_messages sm ON s.id = sm.submission_id
+		LEFT JOIN message_read_status mrs ON sm.id = mrs.message_id AND mrs.user_id = $1
+		LEFT JOIN LATERAL (
+			SELECT sm2.content, u2.full_name as author_name
+			FROM submission_messages sm2
+			JOIN users u2 ON sm2.user_id = u2.id
+			WHERE sm2.submission_id = s.id
+			ORDER BY sm2.created_at DESC
+			LIMIT 1
+		) lm ON true
+		WHERE s.deleted_at IS NULL
+			AND ($2::uuid IS NULL OR s.program_id = $2)
+			AND ($3 = true OR s.user_id = $1)
+		GROUP BY s.id, p.name, u.full_name, u.email, lm.content, lm.author_name
+		ORDER BY last_message_at DESC
+		LIMIT $4 OFFSET $5
 	`
-	rows, err := r.db.Query(ctx, query, userID, status, limit, offset)
+
+	rows, err := r.db.Query(ctx, query, userID, programID, isAdmin, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list submissions: %w", err)
 	}
 	defer rows.Close()
 
-	submissions := make([]models.VideoSubmission, 0)
+	var submissions []models.SubmissionListItem
 	for rows.Next() {
-		var submission models.VideoSubmission
+		var item models.SubmissionListItem
 		err := rows.Scan(
-			&submission.ID,
-			&submission.UserID,
-			&submission.SessionID,
-			&submission.ExerciseID,
-			&submission.VideoURL,
-			&submission.ThumbnailURL,
-			&submission.DurationSeconds,
-			&submission.FileSizeMB,
-			&submission.Status,
-			&submission.SubmittedAt,
+			&item.ID,
+			&item.ProgramID,
+			&item.UserID,
+			&item.Title,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+			&item.DeletedAt,
+			&item.ProgramName,
+			&item.StudentName,
+			&item.StudentEmail,
+			&item.MessageCount,
+			&item.UnreadCount,
+			&item.LastMessageAt,
+			&item.LastMessageText,
+			&item.LastMessageFrom,
 		)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan submission: %w", err)
 		}
-		submissions = append(submissions, submission)
+		submissions = append(submissions, item)
 	}
 
-	return submissions, rows.Err()
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating submissions: %w", err)
+	}
+
+	return submissions, nil
 }
 
-func (r *SubmissionRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status models.SubmissionStatus) error {
-	query := `UPDATE video_submissions SET status = $1 WHERE id = $2`
-	_, err := r.db.Exec(ctx, query, status, id)
-	return err
-}
-
-func (r *SubmissionRepository) CreateFeedback(ctx context.Context, feedback *models.Feedback) error {
+// CreateMessage adds a message to a submission
+func (r *SubmissionRepository) CreateMessage(ctx context.Context, submissionID, userID uuid.UUID, content string, youtubeURL *string) (*models.SubmissionMessage, error) {
 	query := `
-		INSERT INTO feedback (submission_id, instructor_id, feedback_text, feedback_type)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, created_at
+		INSERT INTO submission_messages (id, submission_id, user_id, content, youtube_url, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, submission_id, user_id, content, youtube_url, created_at
 	`
+
+	message := &models.SubmissionMessage{
+		ID:           uuid.New(),
+		SubmissionID: submissionID,
+		UserID:       userID,
+		Content:      content,
+		YouTubeURL:   youtubeURL,
+		CreatedAt:    time.Now(),
+	}
+
 	err := r.db.QueryRow(ctx, query,
-		feedback.SubmissionID,
-		feedback.InstructorID,
-		feedback.FeedbackText,
-		feedback.FeedbackType,
-	).Scan(&feedback.ID, &feedback.CreatedAt)
+		message.ID,
+		message.SubmissionID,
+		message.UserID,
+		message.Content,
+		message.YouTubeURL,
+		message.CreatedAt,
+	).Scan(
+		&message.ID,
+		&message.SubmissionID,
+		&message.UserID,
+		&message.Content,
+		&message.YouTubeURL,
+		&message.CreatedAt,
+	)
 
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to create message: %w", err)
 	}
 
-	// Update submission status to reviewed
-	return r.UpdateStatus(ctx, feedback.SubmissionID, models.StatusReviewed)
+	// Update submission's updated_at timestamp
+	_, _ = r.db.Exec(ctx, `UPDATE submissions SET updated_at = $1 WHERE id = $2`, time.Now(), submissionID)
+
+	return message, nil
 }
 
-func (r *SubmissionRepository) GetFeedback(ctx context.Context, submissionID uuid.UUID) ([]models.Feedback, error) {
-	query := `
-		SELECT id, submission_id, instructor_id, feedback_text, feedback_type, is_read, created_at
-		FROM feedback
-		WHERE submission_id = $1
-		ORDER BY created_at ASC
-	`
-	rows, err := r.db.Query(ctx, query, submissionID)
+// GetMessages retrieves all messages for a submission with access control and read status
+func (r *SubmissionRepository) GetMessages(ctx context.Context, submissionID, userID uuid.UUID, isAdmin bool) ([]models.MessageWithAuthor, error) {
+	// First check access
+	submission, err := r.GetByID(ctx, submissionID, userID, isAdmin)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	feedbacks := make([]models.Feedback, 0)
-	for rows.Next() {
-		var feedback models.Feedback
-		err := rows.Scan(
-			&feedback.ID,
-			&feedback.SubmissionID,
-			&feedback.InstructorID,
-			&feedback.FeedbackText,
-			&feedback.FeedbackType,
-			&feedback.IsRead,
-			&feedback.CreatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		feedbacks = append(feedbacks, feedback)
+	if submission == nil {
+		return nil, ErrSubmissionNotFound
 	}
 
-	return feedbacks, rows.Err()
-}
-
-func (r *SubmissionRepository) MarkFeedbackAsRead(ctx context.Context, feedbackID uuid.UUID) error {
-	query := `UPDATE feedback SET is_read = true WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, feedbackID)
-	return err
-}
-
-func (r *SubmissionRepository) GetUnreadFeedbackCount(ctx context.Context, userID uuid.UUID) (int, error) {
-	var count int
 	query := `
-		SELECT COUNT(*)
-		FROM feedback f
-		JOIN video_submissions vs ON f.submission_id = vs.id
-		WHERE vs.user_id = $1 AND f.is_read = false
+		SELECT
+			sm.id, sm.submission_id, sm.user_id, sm.content, sm.youtube_url, sm.created_at,
+			u.full_name as author_name,
+			u.email as author_email,
+			u.role as author_role,
+			CASE WHEN mrs.user_id IS NOT NULL THEN true ELSE false END as is_read
+		FROM submission_messages sm
+		JOIN users u ON sm.user_id = u.id
+		LEFT JOIN message_read_status mrs ON sm.id = mrs.message_id AND mrs.user_id = $2
+		WHERE sm.submission_id = $1
+		ORDER BY sm.created_at ASC
 	`
-	err := r.db.QueryRow(ctx, query, userID).Scan(&count)
-	return count, err
+
+	rows, err := r.db.Query(ctx, query, submissionID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get messages: %w", err)
+	}
+	defer rows.Close()
+
+	var messages []models.MessageWithAuthor
+	for rows.Next() {
+		var msg models.MessageWithAuthor
+		err := rows.Scan(
+			&msg.ID,
+			&msg.SubmissionID,
+			&msg.UserID,
+			&msg.Content,
+			&msg.YouTubeURL,
+			&msg.CreatedAt,
+			&msg.AuthorName,
+			&msg.AuthorEmail,
+			&msg.AuthorRole,
+			&msg.IsRead,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan message: %w", err)
+		}
+		messages = append(messages, msg)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating messages: %w", err)
+	}
+
+	return messages, nil
+}
+
+// MarkMessageAsRead marks a message as read by a user
+func (r *SubmissionRepository) MarkMessageAsRead(ctx context.Context, userID, messageID uuid.UUID) error {
+	// First check if message exists
+	var exists bool
+	err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM submission_messages WHERE id = $1)`, messageID).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("failed to check message existence: %w", err)
+	}
+	if !exists {
+		return ErrMessageNotFound
+	}
+
+	query := `
+		INSERT INTO message_read_status (user_id, message_id, read_at)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (user_id, message_id) DO NOTHING
+	`
+
+	_, err = r.db.Exec(ctx, query, userID, messageID, time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to mark message as read: %w", err)
+	}
+
+	return nil
+}
+
+// GetUnreadCount returns unread message counts at various levels
+func (r *SubmissionRepository) GetUnreadCount(ctx context.Context, userID uuid.UUID, programID *uuid.UUID) (*models.UnreadCounts, error) {
+	query := `
+		SELECT
+			s.program_id,
+			s.id as submission_id,
+			COUNT(sm.id) as unread_count
+		FROM submissions s
+		JOIN submission_messages sm ON s.id = sm.submission_id
+		LEFT JOIN message_read_status mrs ON sm.id = mrs.message_id AND mrs.user_id = $1
+		WHERE s.deleted_at IS NULL
+			AND sm.user_id != $1
+			AND mrs.user_id IS NULL
+			AND ($2::uuid IS NULL OR s.program_id = $2)
+			AND (s.user_id = $1 OR EXISTS(SELECT 1 FROM users WHERE id = $1 AND role = 'admin'))
+		GROUP BY s.program_id, s.id
+	`
+
+	rows, err := r.db.Query(ctx, query, userID, programID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get unread counts: %w", err)
+	}
+	defer rows.Close()
+
+	counts := &models.UnreadCounts{
+		Total:        0,
+		ByProgram:    make(map[string]int),
+		BySubmission: make(map[string]int),
+	}
+
+	for rows.Next() {
+		var progID, subID uuid.UUID
+		var unreadCount int
+		err := rows.Scan(&progID, &subID, &unreadCount)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan unread count: %w", err)
+		}
+
+		counts.Total += unreadCount
+		counts.ByProgram[progID.String()] += unreadCount
+		counts.BySubmission[subID.String()] = unreadCount
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating unread counts: %w", err)
+	}
+
+	return counts, nil
+}
+
+// SoftDelete soft deletes a submission
+func (r *SubmissionRepository) SoftDelete(ctx context.Context, id uuid.UUID) error {
+	query := `
+		UPDATE submissions
+		SET deleted_at = $1
+		WHERE id = $2 AND deleted_at IS NULL
+	`
+
+	result, err := r.db.Exec(ctx, query, time.Now(), id)
+	if err != nil {
+		return fmt.Errorf("failed to soft delete submission: %w", err)
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrAlreadyDeleted
+	}
+
+	return nil
 }

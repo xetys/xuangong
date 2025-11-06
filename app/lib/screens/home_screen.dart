@@ -1,15 +1,20 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../models/program.dart';
+import '../models/submission.dart';
 import '../services/auth_service.dart';
 import '../services/program_service.dart';
+import '../services/submission_service.dart';
 import '../widgets/practice_history_widget.dart';
+import '../widgets/unread_badge.dart';
 import 'login_screen.dart';
 import 'program_detail_screen.dart';
 import 'program_edit_screen.dart';
 import 'account_screen.dart';
 import 'settings_screen.dart';
 import 'students_screen.dart';
+import 'submissions_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final User user;
@@ -22,6 +27,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   final ProgramService _programService = ProgramService();
+  final SubmissionService _submissionService = SubmissionService();
   late TabController _tabController;
   List<Program>? _myPrograms;
   List<Program>? _templates;
@@ -29,6 +35,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   String? _templatesError;
   bool _loadingMyPrograms = true;
   bool _loadingTemplates = true;
+  UnreadCounts? _unreadCounts;
+  Timer? _unreadCountTimer; // Timer for auto-reloading unread counts
   final GlobalKey<State<PracticeHistoryWidget>> _practiceHistoryKey = GlobalKey();
 
   @override
@@ -36,17 +44,25 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadData();
+
+    // Start periodic timer to reload unread counts every 30 seconds
+    _unreadCountTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _loadUnreadCounts(),
+    );
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _unreadCountTimer?.cancel(); // Cancel the timer
     super.dispose();
   }
 
   Future<void> _loadData() async {
     _loadMyPrograms();
     _loadTemplates();
+    _loadUnreadCounts(); // Load for all users (students see their submissions, admins see all)
   }
 
   Future<void> _loadMyPrograms() async {
@@ -88,6 +104,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         _templatesError = e.toString();
         _loadingTemplates = false;
       });
+    }
+  }
+
+  Future<void> _loadUnreadCounts() async {
+    try {
+      final counts = await _submissionService.getUnreadCount();
+      setState(() {
+        _unreadCounts = counts;
+      });
+    } catch (e) {
+      // Silently fail for unread counts
+      print('Failed to load unread counts: $e');
     }
   }
 
@@ -369,6 +397,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             if (result != null && mounted) {
               _loadMyPrograms();
               _loadTemplates();
+              _loadUnreadCounts(); // Reload unread counts
               // Refresh practice history widget
               final state = _practiceHistoryKey.currentState as dynamic;
               if (state != null && state.mounted) {
@@ -392,6 +421,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         ),
                       ),
                     ),
+                    // Show unread badge for non-template programs
+                    if (!isTemplate && _unreadCounts != null && _unreadCounts!.byProgram.containsKey(program.id)) ...[
+                      UnreadBadge(count: _unreadCounts!.byProgram[program.id]!),
+                      const SizedBox(width: 8),
+                    ],
                     if (isTemplate)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -576,6 +610,32 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     builder: (context) => const StudentsScreen(),
                   ),
                 );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.chat_bubble_outline, color: burgundy),
+              title: Row(
+                children: [
+                  Text(
+                    'Submissions',
+                    style: TextStyle(color: burgundy, fontWeight: FontWeight.w500),
+                  ),
+                  if (_unreadCounts != null && _unreadCounts!.total > 0) ...[
+                    const SizedBox(width: 12),
+                    UnreadBadge(count: _unreadCounts!.total),
+                  ],
+                ],
+              ),
+              onTap: () {
+                Navigator.pop(context); // Close drawer
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const SubmissionsScreen(),
+                  ),
+                ).then((_) {
+                  // Reload unread counts after returning
+                  _loadUnreadCounts();
+                });
               },
             ),
           ],
