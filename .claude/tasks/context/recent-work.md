@@ -89,6 +89,138 @@ final screen = _isAdmin()
 
 ---
 
+## 2025-11-06: Video Submission System & Backend Refactoring
+
+**Status**: ✅ Complete
+
+### Overview
+Completed implementation of video submission chat system with TDD approach on backend, Flutter UI implementation, real-time badge updates, and comprehensive backend refactoring for better error handling and performance.
+
+### Backend Implementation (Go + PostgreSQL)
+
+**Database Schema**:
+- Migration `000005_video_submissions_chat.up.sql`
+- Tables: `submissions`, `submission_messages`, `message_read_status`
+- Soft delete support, read tracking, YouTube URL support
+
+**Three-Layer Architecture**:
+1. **Repository Layer** (`internal/repositories/submission_repository.go`)
+   - TDD approach with comprehensive test coverage
+   - Optimized List query using LATERAL join (better performance than subqueries)
+   - Sentinel errors for type-safe error handling
+   - Methods: Create, GetByID, List, CreateMessage, GetMessages, MarkMessageAsRead, GetUnreadCount, SoftDelete
+
+2. **Service Layer** (`internal/services/submission_service.go`)
+   - Business logic and validation
+   - YouTube URL validation using `pkg/youtube` package
+   - Access control (admin can see all, students see only their own)
+   - Error translation to app-specific errors
+
+3. **Handler Layer** (`internal/handlers/submissions.go`)
+   - RESTful API endpoints
+   - Request validation
+   - Enhanced error logging with request context
+
+**Refactoring Improvements**:
+- Sentinel errors pattern: `ErrAccessDenied`, `ErrSubmissionNotFound`, `ErrMessageNotFound`, `ErrAlreadyDeleted`
+- Replaced string comparisons with `errors.Is()` for type safety
+- Enhanced logging: includes HTTP method + path in error logs
+- Query optimization: LATERAL join in List query for better performance
+
+### Frontend Implementation (Flutter)
+
+**New Screens**:
+- `submission_chat_screen.dart` - Chat interface with YouTube video support
+- `submissions_screen.dart` - List view with unread badges
+
+**New Widgets**:
+- `message_bubble.dart` - Message display with YouTube player integration
+- `submission_card.dart` - Submission list item with metadata
+- `unread_badge.dart` - Reusable badge component
+
+**New Models**:
+- `submission.dart` - Submission, SubmissionListItem, SubmissionMessage, MessageWithAuthor, UnreadCounts
+
+**New Services**:
+- `submission_service.dart` - API client for submission endpoints
+
+**UI/UX Enhancements**:
+1. **Real-time Badge Updates**
+   - 30-second auto-reload timer on home screen
+   - Badges show in tab titles and program cards
+   - Immediate updates on navigation
+
+2. **YouTube URL Enforcement**
+   - Required field when creating submissions
+   - Automatically posted as first message
+   - Inline video player in chat
+
+3. **Navigation State Management**
+   - WillPopScope returns boolean indicating if messages were sent
+   - Parent screens reload data appropriately
+
+### Bug Fixes
+1. Fixed parameter name mismatch: `videoUrl` → `youtubeUrl`
+2. Fixed route conflict: `:programId` → `:id` in Gin router
+3. Fixed null handling in submission service (API can return null for empty lists)
+4. Fixed badge visibility on initial app load
+
+### Files Created
+
+**Backend**:
+- `internal/repositories/submission_repository.go`
+- `internal/repositories/submission_repository_test.go`
+- `internal/services/submission_service.go`
+- `internal/handlers/submissions.go`
+- `migrations/000005_video_submissions_chat.up.sql`
+- `migrations/000005_video_submissions_chat.down.sql`
+
+**Frontend**:
+- `app/lib/models/submission.dart`
+- `app/lib/screens/submission_chat_screen.dart`
+- `app/lib/screens/submissions_screen.dart`
+- `app/lib/services/submission_service.dart`
+- `app/lib/widgets/message_bubble.dart`
+- `app/lib/widgets/submission_card.dart`
+- `app/lib/widgets/unread_badge.dart`
+
+**Documentation**:
+- `.claude/docs/backend/video-submission-tdd-plan.md`
+- `.claude/docs/app/video-submission-flutter-implementation-plan.md`
+
+### Files Modified
+
+**Backend**:
+- `cmd/api/main.go` - Added submission routes
+- `internal/handlers/helpers.go` - Enhanced error logging
+- `internal/models/submission.go` - Added submission models
+- `internal/validators/requests.go` - Added submission validators
+- `pkg/testutil/fixtures.go` - Added submission fixtures
+
+**Frontend**:
+- `app/lib/screens/home_screen.dart` - Added unread count timer
+- `app/lib/screens/program_detail_screen.dart` - Added submissions tab, YouTube URL enforcement
+
+### API Endpoints
+```
+POST   /api/v1/programs/:id/submissions
+GET    /api/v1/submissions
+GET    /api/v1/submissions/:id
+DELETE /api/v1/submissions/:id
+GET    /api/v1/submissions/:id/messages
+POST   /api/v1/submissions/:id/messages
+PUT    /api/v1/messages/:id/read
+GET    /api/v1/submissions/unread-count
+```
+
+### Testing Status
+- ✅ Backend compiles successfully
+- ✅ Repository tests pass (TDD approach)
+- ✅ All refactoring changes verified
+- ✅ Flutter app tested with real API
+
+---
+
 ## 2025-11-05: Logout Bug Fix
 
 **Status**: ✅ Fixed - Ready for Testing

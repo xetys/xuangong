@@ -50,19 +50,20 @@ func main() {
 	programService := services.NewProgramService(programRepo, exerciseRepo)
 	sessionService := services.NewSessionService(sessionRepo, programRepo)
 	userService := services.NewUserService(userRepo, programRepo, exerciseRepo)
+	submissionService := services.NewSubmissionService(submissionRepo, programRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	programHandler := handlers.NewProgramHandler(programService)
 	sessionHandler := handlers.NewSessionHandler(sessionService)
 	userHandler := handlers.NewUserHandler(userService)
+	submissionHandler := handlers.NewSubmissionHandler(submissionService)
 
 	// Setup router
-	router := setupRouter(cfg, authService, authHandler, programHandler, sessionHandler, userHandler)
+	router := setupRouter(cfg, authService, authHandler, programHandler, sessionHandler, userHandler, submissionHandler)
 
 	// Suppress unused variable warnings
 	_ = exerciseRepo
-	_ = submissionRepo
 
 	// Create server
 	srv := &http.Server{
@@ -106,6 +107,7 @@ func setupRouter(
 	programHandler *handlers.ProgramHandler,
 	sessionHandler *handlers.SessionHandler,
 	userHandler *handlers.UserHandler,
+	submissionHandler *handlers.SubmissionHandler,
 ) *gin.Engine {
 	// Set gin mode
 	if cfg.Server.Env == "production" {
@@ -195,7 +197,22 @@ func setupRouter(
 			users.PUT("/:id/role", userHandler.UpdateUserRole)
 		}
 
-		// TODO: Add submissions, feedback, exercises endpoints
+		// Submissions
+		submissions := protected.Group("/submissions")
+		{
+			submissions.GET("", submissionHandler.ListSubmissions)             // List with filters
+			submissions.GET("/unread-count", submissionHandler.GetUnreadCount) // Get unread counts
+			submissions.GET("/:id", submissionHandler.GetSubmission)           // Get single submission
+			submissions.GET("/:id/messages", submissionHandler.GetMessages)    // Get messages for submission
+			submissions.POST("/:id/messages", submissionHandler.CreateMessage) // Add message to submission
+			submissions.DELETE("/:id", submissionHandler.DeleteSubmission)     // Soft delete (admin only, checked in handler)
+		}
+
+		// Create submission for a program
+		protected.POST("/programs/:id/submissions", submissionHandler.CreateSubmission)
+
+		// Mark message as read
+		protected.PUT("/messages/:id/read", submissionHandler.MarkMessageAsRead)
 	}
 
 	return router

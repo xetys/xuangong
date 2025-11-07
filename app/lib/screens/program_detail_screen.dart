@@ -5,14 +5,18 @@ import '../models/program.dart';
 import '../models/exercise.dart';
 import '../models/user.dart';
 import '../models/session.dart';
+import '../models/submission.dart';
 import '../services/program_service.dart';
 import '../services/session_service.dart';
+import '../services/submission_service.dart';
 import '../widgets/xg_button.dart';
 import '../widgets/youtube_player_widget.dart';
+import '../widgets/submission_card.dart';
 import 'practice_screen.dart';
 import 'program_edit_screen.dart';
 import 'session_edit_screen.dart';
 import 'session_detail_screen.dart';
+import 'submission_chat_screen.dart';
 
 class ProgramDetailScreen extends StatefulWidget {
   final Program program;
@@ -32,9 +36,13 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final SessionService _sessionService = SessionService();
+  final SubmissionService _submissionService = SubmissionService();
 
   List<SessionWithLogs> _sessions = [];
   bool _isLoadingSessions = false;
+  List<SubmissionListItem> _submissions = [];
+  bool _isLoadingSubmissions = false;
+  int _submissionsUnreadCount = 0; // Unread count for this program
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   bool _hasChanges = false; // Track if sessions were modified
@@ -53,6 +61,7 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
     if (showAllTabs) {
       _tabController.addListener(_onTabChanged);
       _loadSessions();
+      _loadSubmissions(); // Load submissions immediately to show badge in tab
     }
   }
 
@@ -63,6 +72,8 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
   void _onTabChanged() {
     if (_tabController.index == 1) { // Sessions tab
       _loadSessions();
+    } else if (_tabController.index == 2) { // Submissions tab
+      _loadSubmissions();
     }
   }
 
@@ -99,6 +110,40 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to load sessions: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadSubmissions() async {
+    if (_isLoadingSubmissions || widget.program.isTemplate) return;
+
+    setState(() => _isLoadingSubmissions = true);
+
+    try {
+      final submissions = await _submissionService.listSubmissions(
+        programId: widget.program.id,
+        limit: 100,
+      );
+
+      // Load unread count for this program
+      final unreadCounts = await _submissionService.getUnreadCount(
+        programId: widget.program.id,
+      );
+
+      setState(() {
+        _submissions = submissions;
+        _submissionsUnreadCount = unreadCounts.total;
+        _isLoadingSubmissions = false;
+      });
+    } catch (e) {
+      setState(() => _isLoadingSubmissions = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load submissions: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -167,10 +212,35 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
                 indicatorWeight: 3,
                 labelColor: Colors.white,
                 unselectedLabelColor: Colors.white.withValues(alpha: 0.7),
-                tabs: const [
-                  Tab(text: 'Overview'),
-                  Tab(text: 'Sessions'),
-                  Tab(text: 'Submissions'),
+                tabs: [
+                  const Tab(text: 'Overview'),
+                  const Tab(text: 'Sessions'),
+                  Tab(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Submissions'),
+                        if (_submissionsUnreadCount > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '$_submissionsUnreadCount',
+                              style: const TextStyle(
+                                color: Color(0xFF9B1C1C),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ],
               )
             : null,
@@ -603,47 +673,197 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
   }
 
   Widget _buildSubmissionsTab() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.videocam,
-              size: 80,
-              color: Colors.grey.shade300,
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Video Submissions',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
+    const burgundy = Color(0xFF9B1C1C);
+
+    return Column(
+      children: [
+        // Create submission button
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                final titleController = TextEditingController();
+                final youtubeController = TextEditingController();
+
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('New Submission'),
+                    content: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextField(
+                            controller: titleController,
+                            decoration: const InputDecoration(
+                              labelText: 'Title',
+                              hintText: 'e.g., Week 1 Progress',
+                              border: OutlineInputBorder(),
+                            ),
+                            autofocus: true,
+                            textCapitalization: TextCapitalization.sentences,
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: youtubeController,
+                            decoration: const InputDecoration(
+                              labelText: 'YouTube URL *',
+                              hintText: 'https://youtube.com/watch?v=...',
+                              border: OutlineInputBorder(),
+                              helperText: 'Required: Your practice video',
+                            ),
+                            keyboardType: TextInputType.url,
+                          ),
+                        ],
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: burgundy,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Create'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirmed == true &&
+                    titleController.text.trim().isNotEmpty &&
+                    youtubeController.text.trim().isNotEmpty) {
+                  try {
+                    // Create the submission first
+                    final submission = await _submissionService.createSubmission(
+                      widget.program.id,
+                      titleController.text.trim(),
+                    );
+
+                    // Immediately post the YouTube URL as the first message
+                    await _submissionService.createMessage(
+                      submission.id,
+                      'Practice video',
+                      youtubeUrl: youtubeController.text.trim(),
+                    );
+
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Submission created with video!'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      _loadSubmissions();
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to create submission: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                } else if (confirmed == true) {
+                  // Show error if fields are missing
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please fill in all fields'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('New Submission'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: burgundy,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Submit practice videos for instructor feedback',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                color: Colors.grey.shade500,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Coming soon!',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey.shade400,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
+
+        // Submissions list
+        Expanded(
+          child: _isLoadingSubmissions
+              ? const Center(child: CircularProgressIndicator())
+              : _submissions.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(40),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.chat_bubble_outline,
+                              size: 80,
+                              color: Colors.grey.shade300,
+                            ),
+                            const SizedBox(height: 20),
+                            Text(
+                              'No submissions yet',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Create a submission to get feedback from your instructor',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _submissions.length,
+                      itemBuilder: (context, index) {
+                        final submission = _submissions[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: SubmissionCard(
+                            submission: submission,
+                            onTap: () async {
+                              final result = await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => SubmissionChatScreen(
+                                    submissionId: submission.id,
+                                  ),
+                                ),
+                              );
+                              // Reload submissions if messages were added
+                              if (result == true && mounted) {
+                                _loadSubmissions();
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    ),
+        ),
+      ],
     );
   }
 

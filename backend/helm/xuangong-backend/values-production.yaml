@@ -1,0 +1,145 @@
+# Production values for xuangong-backend
+# Override default values for production deployment
+
+replicaCount: 3
+
+image:
+  repository: ghcr.io/xetys/xuangong/api
+  tag: "v2025.1.0-alpha4"
+  pullPolicy: IfNotPresent
+
+# Resource limits for production workload
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+# Enable autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Production server configuration
+config:
+  server:
+    env: production
+    port: 8080
+    apiVersion: v1
+
+  # PostgreSQL database (using subchart)
+  database:
+    host: xuangong-prod-postgresql
+    port: 5432
+    name: xuangong_production
+    user: xuangong
+    sslMode: disable
+    maxOpenConns: 50
+    maxIdleConns: 10
+    connMaxLifetime: 5m
+
+  # JWT configuration
+  jwt:
+    accessExpiry: 15m
+    refreshExpiry: 7d
+
+  # CORS configuration for production
+  cors:
+    allowedOrigins:
+      - "https://xuangong-prod.stytex.cloud"
+      - "https://app.xuangong-prod.stytex.cloud"
+    allowedMethods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "DELETE"
+      - "OPTIONS"
+    allowedHeaders:
+      - "Origin"
+      - "Content-Type"
+      - "Authorization"
+    allowCredentials: true
+    maxAge: 12h
+
+  # Rate limiting
+  rateLimit:
+    enabled: true
+    requestsPerMinute: 100
+    burst: 20
+
+# IMPORTANT: Override these in production!
+# Use --set secrets.databasePassword=xxx or external secret management
+secrets:
+  # Generate with: openssl rand -base64 32
+  # NOTE: This must match postgresql.auth.password
+  databasePassword: "xuangong"
+  # Generate with: openssl rand -base64 64
+  jwtSecret: "Rz320Rqhhq9G5YzCM/VR+XxWikCKIUa8"
+
+# Enable ingress with TLS
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: xuangong-prod.stytex.cloud
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: xuangong-backend-tls-prod
+      hosts:
+        - xuangong-prod.stytex.cloud
+
+# Pod anti-affinity for high availability
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values:
+                - xuangong-backend
+        topologyKey: kubernetes.io/hostname
+
+# Node selector for production nodes
+nodeSelector: {}
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# PostgreSQL subchart configuration
+postgresql:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/postgresql
+    tag: "latest"
+  auth:
+    username: xuangong
+    password: xuangong
+    database: xuangong_production
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""  # Use default storage class
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi

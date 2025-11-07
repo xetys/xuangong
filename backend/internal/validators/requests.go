@@ -1,9 +1,5 @@
 package validators
 
-import (
-	"github.com/xuangong/backend/internal/models"
-)
-
 // Auth requests
 type RegisterRequest struct {
 	Email    string `json:"email" validate:"required,email"`
@@ -61,6 +57,26 @@ type CreateProgramRequest struct {
 	RepetitionsPlanned *int                   `json:"repetitions_planned" validate:"omitempty,gte=1"`
 	OwnedByUserID      *string                `json:"owned_by_user_id" validate:"omitempty,uuid"` // Admin can specify owner
 	Exercises          []ExerciseRequest      `json:"exercises" validate:"dive"`
+}
+
+// Submission requests
+type CreateSubmissionRequest struct {
+	Title string `json:"title" validate:"required,min=3,max=255"`
+}
+
+type CreateMessageRequest struct {
+	Content    string  `json:"content" validate:"required,min=1"`
+	YouTubeURL *string `json:"youtube_url" validate:"omitempty,url"`
+}
+
+type ListSubmissionsQuery struct {
+	ProgramID *string `form:"program_id" validate:"omitempty,uuid"`
+	Limit     int     `form:"limit" validate:"omitempty,gte=1,lte=100"`
+	Offset    int     `form:"offset" validate:"omitempty,gte=0"`
+}
+
+type MarkMessageReadRequest struct {
+	MessageID string `json:"message_id" validate:"required,uuid"`
 }
 
 type UpdateProgramRequest struct {
@@ -147,21 +163,6 @@ type CompleteSessionRequest struct {
 	CompletedAt          *string  `json:"completed_at"`
 }
 
-// Submission requests
-type CreateSubmissionRequest struct {
-	SessionID       string   `json:"session_id" validate:"required,uuid"`
-	ExerciseID      *string  `json:"exercise_id" validate:"omitempty,uuid"`
-	VideoURL        string   `json:"video_url" validate:"required,url"`
-	ThumbnailURL    string   `json:"thumbnail_url" validate:"omitempty,url"`
-	DurationSeconds *int     `json:"duration_seconds" validate:"omitempty,min=0"`
-	FileSizeMB      *float64 `json:"file_size_mb" validate:"omitempty,min=0"`
-}
-
-type CreateFeedbackRequest struct {
-	FeedbackText string `json:"feedback_text" validate:"required,min=10"`
-	FeedbackType string `json:"feedback_type" validate:"required,oneof=text audio"`
-}
-
 // Update settings request
 type UpdateProgramSettingsRequest struct {
 	CustomSettings map[string]interface{} `json:"custom_settings"`
@@ -182,11 +183,4 @@ type ListSessionsQuery struct {
 	EndDate   *string `form:"end_date" validate:"omitempty,datetime=2006-01-02"`
 	Limit     int     `form:"limit" validate:"min=1,max=100"`
 	Offset    int     `form:"offset" validate:"min=0"`
-}
-
-type ListSubmissionsQuery struct {
-	Status *models.SubmissionStatus `form:"status" validate:"omitempty,oneof=pending reviewed archived"`
-	UserID *string                  `form:"user_id" validate:"omitempty,uuid"`
-	Limit  int                      `form:"limit" validate:"min=1,max=100"`
-	Offset int                      `form:"offset" validate:"min=0"`
 }
