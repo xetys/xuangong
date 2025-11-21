@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/xuangong/backend/internal/middleware"
 	"github.com/xuangong/backend/internal/models"
 	"github.com/xuangong/backend/internal/services"
@@ -238,5 +239,40 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Password changed successfully",
+	})
+}
+
+// Impersonate godoc
+// @Summary Impersonate a user (admin only)
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param userId path string true "User ID to impersonate"
+// @Success 200 {object} map[string]interface{}
+// @Router /api/v1/auth/impersonate/{userId} [post]
+// @Security BearerAuth
+func (h *AuthHandler) Impersonate(c *gin.Context) {
+	adminID, err := middleware.GetUserID(c)
+	if err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	targetUserIDStr := c.Param("userId")
+	targetUserID, err := uuid.Parse(targetUserIDStr)
+	if err != nil {
+		respondWithError(c, appErrors.NewBadRequestError("Invalid user ID format"))
+		return
+	}
+
+	targetUser, tokens, err := h.authService.Impersonate(c.Request.Context(), adminID, targetUserID)
+	if err != nil {
+		respondWithAppError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user":   targetUser.ToResponse(),
+		"tokens": tokens,
 	})
 }

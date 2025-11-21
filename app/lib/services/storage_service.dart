@@ -12,6 +12,10 @@ class StorageService {
   static const String _keyRefreshToken = 'refresh_token';
   static const String _keyUserId = 'user_id';
   static const String _keyUserEmail = 'user_email';
+  static const String _keyAdminAccessTokenBackup = 'admin_access_token_backup';
+  static const String _keyAdminRefreshTokenBackup = 'admin_refresh_token_backup';
+  static const String _keyIsImpersonating = 'is_impersonating';
+  static const String _keyImpersonatedUserId = 'impersonated_user_id';
 
   // Save tokens
   Future<void> saveTokens(String accessToken, String refreshToken) async {
@@ -54,6 +58,10 @@ class StorageService {
     await _storage.delete(key: _keyRefreshToken);
     await _storage.delete(key: _keyUserId);
     await _storage.delete(key: _keyUserEmail);
+    await _storage.delete(key: _keyAdminAccessTokenBackup);
+    await _storage.delete(key: _keyAdminRefreshTokenBackup);
+    await _storage.delete(key: _keyIsImpersonating);
+    await _storage.delete(key: _keyImpersonatedUserId);
     // IMPORTANT: If you add new keys to this class, remember to delete them here too!
   }
 
@@ -61,5 +69,51 @@ class StorageService {
   Future<bool> isLoggedIn() async {
     final token = await getAccessToken();
     return token != null && token.isNotEmpty;
+  }
+
+  // Impersonation methods
+  Future<void> startImpersonation(String targetUserId, String targetAccessToken, String targetRefreshToken) async {
+    // Backup current admin tokens
+    final currentAccessToken = await getAccessToken();
+    final currentRefreshToken = await getRefreshToken();
+
+    if (currentAccessToken != null) {
+      await _storage.write(key: _keyAdminAccessTokenBackup, value: currentAccessToken);
+    }
+    if (currentRefreshToken != null) {
+      await _storage.write(key: _keyAdminRefreshTokenBackup, value: currentRefreshToken);
+    }
+
+    // Set impersonation flag and target user ID
+    await _storage.write(key: _keyIsImpersonating, value: 'true');
+    await _storage.write(key: _keyImpersonatedUserId, value: targetUserId);
+
+    // Replace tokens with target user's tokens
+    await saveTokens(targetAccessToken, targetRefreshToken);
+  }
+
+  Future<void> exitImpersonation() async {
+    // Restore admin tokens from backup
+    final adminAccessToken = await _storage.read(key: _keyAdminAccessTokenBackup);
+    final adminRefreshToken = await _storage.read(key: _keyAdminRefreshTokenBackup);
+
+    if (adminAccessToken != null && adminRefreshToken != null) {
+      await saveTokens(adminAccessToken, adminRefreshToken);
+    }
+
+    // Clear impersonation data
+    await _storage.delete(key: _keyAdminAccessTokenBackup);
+    await _storage.delete(key: _keyAdminRefreshTokenBackup);
+    await _storage.delete(key: _keyIsImpersonating);
+    await _storage.delete(key: _keyImpersonatedUserId);
+  }
+
+  Future<bool> isImpersonating() async {
+    final flag = await _storage.read(key: _keyIsImpersonating);
+    return flag == 'true';
+  }
+
+  Future<String?> getImpersonatedUserId() async {
+    return await _storage.read(key: _keyImpersonatedUserId);
   }
 }

@@ -230,3 +230,32 @@ func (s *AuthService) ValidateAccessToken(token string) (*auth.Claims, error) {
 	}
 	return claims, nil
 }
+
+// Impersonate allows an admin to impersonate another user
+func (s *AuthService) Impersonate(ctx context.Context, adminID, targetUserID uuid.UUID) (*models.User, *auth.TokenPair, error) {
+	// Verify the admin user
+	admin, err := s.userRepo.GetByID(ctx, adminID)
+	if err != nil {
+		return nil, nil, appErrors.NewInternalError("Failed to fetch admin user").WithError(err)
+	}
+	if admin == nil || !admin.IsAdmin() {
+		return nil, nil, appErrors.NewAuthorizationError("Only admins can impersonate users")
+	}
+
+	// Get the target user
+	targetUser, err := s.userRepo.GetByID(ctx, targetUserID)
+	if err != nil {
+		return nil, nil, appErrors.NewInternalError("Failed to fetch target user").WithError(err)
+	}
+	if targetUser == nil {
+		return nil, nil, appErrors.NewNotFoundError("Target user")
+	}
+
+	// Generate tokens for the target user
+	tokens, err := s.generateTokens(targetUser)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return targetUser, tokens, nil
+}

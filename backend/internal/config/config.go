@@ -125,7 +125,7 @@ func setDefaults() {
 	viper.SetDefault("DB_MAX_CONNECTIONS", 25)
 	viper.SetDefault("DB_MAX_IDLE_CONNECTIONS", 5)
 	viper.SetDefault("DB_MAX_LIFETIME_MINUTES", 5)
-	viper.SetDefault("JWT_EXPIRY_HOURS", 24)
+	viper.SetDefault("JWT_EXPIRY_HOURS", 336) // 14 days
 	viper.SetDefault("REFRESH_TOKEN_EXPIRY_DAYS", 7)
 	viper.SetDefault("ALLOWED_ORIGINS", "*")
 	viper.SetDefault("ALLOWED_METHODS", "GET,POST,PUT,DELETE,OPTIONS")

@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:html' as html show window;
 import '../models/user.dart';
 import '../models/program.dart';
 import '../models/submission.dart';
@@ -40,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   UnreadCounts? _unreadCounts;
   Timer? _unreadCountTimer; // Timer for auto-reloading unread counts
   final GlobalKey<State<PracticeHistoryWidget>> _practiceHistoryKey = GlobalKey();
+  bool _isImpersonating = false;
 
   @override
   void initState() {
@@ -47,12 +50,20 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _currentUser = widget.user;
     _tabController = TabController(length: 2, vsync: this);
     _loadData();
+    _checkImpersonationStatus();
 
     // Start periodic timer to reload unread counts every 30 seconds
     _unreadCountTimer = Timer.periodic(
       const Duration(seconds: 30),
       (_) => _loadUnreadCounts(),
     );
+  }
+
+  Future<void> _checkImpersonationStatus() async {
+    final isImpersonating = await _authService.isImpersonating();
+    setState(() {
+      _isImpersonating = isImpersonating;
+    });
   }
 
   Future<void> _loadCurrentUser() async {
@@ -519,13 +530,35 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   color: Colors.white,
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  _currentUser.fullName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _currentUser.fullName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (_isImpersonating)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'IMPERSONATING',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -567,6 +600,21 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             },
           ),
           const Divider(),
+          if (_isImpersonating)
+            ListTile(
+              leading: const Icon(Icons.exit_to_app, color: Colors.orange),
+              title: const Text(
+                'Exit Impersonation',
+                style: TextStyle(
+                  color: Colors.orange,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () async {
+                Navigator.pop(context); // Close drawer
+                await _handleExitImpersonation(context);
+              },
+            ),
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Logout'),
@@ -646,6 +694,47 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           builder: (context) => const LoginScreen(),
         ),
       );
+    }
+  }
+
+  Future<void> _handleExitImpersonation(BuildContext context) async {
+    try {
+      await _authService.exitImpersonation();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Exited impersonation. Reloading app...'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      // Reload the app
+      await Future.delayed(const Duration(seconds: 1));
+      if (kIsWeb) {
+        html.window.location.reload();
+      } else {
+        // For mobile, navigate to root
+        if (context.mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => const LoginScreen(),
+            ),
+            (route) => false,
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error exiting impersonation: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }

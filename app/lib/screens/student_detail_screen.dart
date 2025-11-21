@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:html' as html show window;
 import '../models/user.dart';
 import '../models/program.dart';
 import '../services/user_service.dart';
@@ -117,6 +119,62 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     }
   }
 
+  Future<void> _impersonateStudent() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Impersonate User'),
+        content: Text('You will be logged in as ${widget.student.fullName}. The app will reload.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Impersonate'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _authService.impersonateUser(widget.student.id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Impersonation started. Reloading app...'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      // Reload the app
+      await Future.delayed(const Duration(seconds: 1));
+      if (kIsWeb) {
+        html.window.location.reload();
+      } else {
+        // For mobile, we need to restart the app or navigate to root
+        if (mounted) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error impersonating: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const burgundy = Color(0xFF9B1C1C);
@@ -128,6 +186,11 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         backgroundColor: burgundy,
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            onPressed: _impersonateStudent,
+            tooltip: 'Impersonate User',
+          ),
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () async {

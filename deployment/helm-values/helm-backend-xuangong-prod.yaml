@@ -2,12 +2,10 @@
 # Override default values for production deployment
 
 replicaCount: 2
-
 image:
   repository: ghcr.io/xetys/xuangong/api
-  tag: "v2025.1.0-beta1"
+  tag: "v2025.1.0-beta2"
   pullPolicy: IfNotPresent
-
 # Resource limits for production workload
 resources:
   limits:
@@ -16,22 +14,19 @@ resources:
   requests:
     cpu: 200m
     memory: 256Mi
-
 # Enable autoscaling
 autoscaling:
-  enabled: true
+  enabled: false
   minReplicas: 3
   maxReplicas: 20
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
-
 # Production server configuration
 config:
   server:
     env: production
     port: 8080
     apiVersion: v1
-
   # PostgreSQL database (using subchart)
   database:
     host: xuangong-prod-postgresql
@@ -42,12 +37,10 @@ config:
     maxOpenConns: 50
     maxIdleConns: 10
     connMaxLifetime: 5m
-
   # JWT configuration
   jwt:
-    accessExpiry: 336h  # 14 days
+    accessExpiry: 336h # 14 days
     refreshExpiry: 7d
-
   # CORS configuration for production
   cors:
     allowedOrigins:
@@ -65,13 +58,11 @@ config:
       - "Authorization"
     allowCredentials: true
     maxAge: 12h
-
   # Rate limiting
   rateLimit:
     enabled: true
     requestsPerMinute: 100
     burst: 20
-
 # IMPORTANT: Override these in production!
 # Use --set secrets.databasePassword=xxx or external secret management
 secrets:
@@ -80,7 +71,6 @@ secrets:
   databasePassword: "xuangong"
   # Generate with: openssl rand -base64 64
   jwtSecret: "Rz320Rqhhq9G5YzCM/VR+XxWikCKIUa8"
-
 # Enable ingress with TLS
 ingress:
   enabled: true
@@ -96,10 +86,9 @@ ingress:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: xuangong-backend-tls-prod
+    - secretName: xuangong-backend-tls-xuangong-prod
       hosts:
         - xuangong-prod.stytex.cloud
-
 # Pod anti-affinity for high availability
 affinity:
   podAntiAffinity:
@@ -111,15 +100,12 @@ affinity:
               values:
                 - xuangong-backend
         topologyKey: kubernetes.io/hostname
-
 # Node selector for production nodes
 nodeSelector: {}
-
 # Pod disruption budget
 podDisruptionBudget:
   enabled: true
   minAvailable: 2
-
 # PostgreSQL subchart configuration
 postgresql:
   enabled: true
@@ -135,7 +121,7 @@ postgresql:
     persistence:
       enabled: true
       size: 20Gi
-      storageClass: ""  # Use default storage class
+      storageClass: "" # Use default storage class
     resources:
       limits:
         cpu: 2000m

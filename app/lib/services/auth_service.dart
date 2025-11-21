@@ -151,4 +151,40 @@ class AuthService {
       throw Exception('Failed to change password: ${e.toString()}');
     }
   }
+
+  // Impersonate user (admin only)
+  Future<void> impersonateUser(String userId) async {
+    try {
+      final response = await _apiClient.post(
+        '${ApiConfig.baseUrl}/api/v1/auth/impersonate/$userId',
+        {},
+      );
+
+      final data = _apiClient.parseResponse(response);
+
+      // Extract tokens from nested object
+      final tokens = data['tokens'] as Map<String, dynamic>;
+      final targetUser = User.fromJson(data['user'] as Map<String, dynamic>);
+
+      // Start impersonation
+      await _storage.startImpersonation(
+        targetUser.id,
+        tokens['access_token'] as String,
+        tokens['refresh_token'] as String,
+      );
+      await _storage.saveUserInfo(targetUser.id, targetUser.email);
+    } catch (e) {
+      throw Exception('Failed to impersonate user: ${e.toString()}');
+    }
+  }
+
+  // Exit impersonation
+  Future<void> exitImpersonation() async {
+    await _storage.exitImpersonation();
+  }
+
+  // Check if currently impersonating
+  Future<bool> isImpersonating() async {
+    return await _storage.isImpersonating();
+  }
 }

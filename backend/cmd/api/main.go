@@ -151,6 +151,13 @@ func setupRouter(
 		protected.PUT("/auth/me", authHandler.UpdateProfile)
 		protected.PUT("/auth/change-password", authHandler.ChangePassword)
 
+		// Impersonate (admin only)
+		authAdmin := protected.Group("/auth")
+		authAdmin.Use(middleware.RequireRole("admin"))
+		{
+			authAdmin.POST("/impersonate/:userId", authHandler.Impersonate)
+		}
+
 		// Programs
 		programs := protected.Group("/programs")
 		{

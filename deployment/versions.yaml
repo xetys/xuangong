@@ -1,0 +1,4 @@
+xuangong-prod:
+  domain: xuangong-prod.stytex.cloud
+  appVersion: v2025.1.0-beta2
+  backendVersion: v2025.1.0-beta2
