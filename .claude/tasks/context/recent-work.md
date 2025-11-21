@@ -1,8 +1,163 @@
 # Recent Work Log
 
-*Last updated: 2025-11-06*
+*Last updated: 2025-11-20*
 
 This file tracks the most recent changes to the codebase. Keep this updated after significant work.
+
+---
+
+## 2025-11-20: UI/UX Improvements & Sound Volume Settings
+
+**Status**: ✅ Complete - Fully Tested
+
+### Changes
+1. **Home Screen Double Scroll Bug Fix**
+   - Removed outer `SingleChildScrollView` wrapper causing nested scroll contexts
+   - Changed `TabBarView` from fixed height to `Expanded` for proper layout
+   - Added bottom padding (80px) to both ListViews for FAB clearance
+   - Moved "Welcome back" message to drawer header
+
+2. **Both Sides Functionality Fix**
+   - Added `sideDurationController` to program_edit_screen.dart for separate side duration input
+   - Implemented `_currentSide` state tracking (null, 1, or 2) in practice_screen.dart
+   - Added side transition logic - second side plays after first completes
+   - Fixed duration calculation to properly double duration for exercises with `hasSides=true`
+   - Added UI badges showing "First Side"/"Second Side" during practice
+   - Fixed fallback: `sideDurationSeconds ?? durationSeconds ?? 0`
+
+3. **Sound Volume Settings (Backend + Flutter)**
+   - **Backend**: Added 4 volume columns to users table (migration 000006)
+     - `countdown_volume`, `start_volume`, `halfway_volume`, `finish_volume`
+     - CHECK constraints for valid values (0, 25, 50, 75, 100)
+     - Defaults: countdown=75, start=75, halfway=25, finish=100
+   - **Backend**: Updated User model, validators, auth service, and repositories
+   - **Backend**: Fixed repository queries to SELECT and UPDATE volume columns
+   - **Flutter**: New AudioSettingsScreen with 5-level selection UI
+   - **Flutter**: Updated SettingsScreen with navigation to audio settings
+   - **Flutter**: Extended AudioService with volume control methods
+   - **Flutter**: Settings apply immediately without app reload
+   - **Flutter**: HomeScreen reloads user data when settings change
+
+4. **Wake Lock Reliability Enhancement**
+   - Added periodic timer to renew wake lock every 30 seconds
+   - Prevents screen timeout on devices where wake locks can expire
+   - Timer properly cleaned up in dispose method
+
+5. **Session Count Display for All Programs**
+   - Changed condition from `repetitionsPlanned != null` to always show for non-templates
+   - Display format: "X/Y" if planned repetitions exist, "X sessions" otherwise
+   - Applied to both home_screen.dart and student_detail_screen.dart
+
+### Files Modified
+
+**Backend**:
+- `backend/internal/repositories/user_repository.go` - Added volume fields to all queries and Update method
+- `backend/internal/models/user.go` - Added 4 volume fields to User and UserResponse
+- `backend/internal/validators/requests.go` - Added volume validation to UpdateProfileRequest
+- `backend/internal/services/auth_service.go` - Extended UpdateProfile to accept volume parameters
+- `backend/internal/handlers/auth.go` - Updated UpdateProfile handler to pass volumes
+
+**Backend (New Files)**:
+- `backend/migrations/000006_add_user_audio_settings.up.sql`
+- `backend/migrations/000006_add_user_audio_settings.down.sql`
+
+**Flutter**:
+- `app/lib/models/user.dart` - Added 4 volume fields with defaults
+- `app/lib/models/program.dart` - Fixed duration calculation for both sides
+- `app/lib/services/audio_service.dart` - Added volume control methods
+- `app/lib/services/auth_service.dart` - Extended updateProfile with volume parameters
+- `app/lib/screens/home_screen.dart` - Fixed scroll, added user reload, session count display
+- `app/lib/screens/settings_screen.dart` - Made functional, returns settings changed flag
+- `app/lib/screens/program_edit_screen.dart` - Added side duration input field
+- `app/lib/screens/program_detail_screen.dart` - Changed button visibility to ownership-based
+- `app/lib/screens/practice_screen.dart` - Side tracking, volume initialization, wake lock timer
+- `app/lib/screens/student_detail_screen.dart` - Session count display
+
+**Flutter (New Files)**:
+- `app/lib/screens/audio_settings_screen.dart` - Full audio settings UI
+
+### Technical Details
+
+**Sound Volume Implementation**:
+```dart
+// AudioService volume conversion
+double _convertVolume(int volume) {
+  return volume / 100.0;  // Convert 0-100 to 0.0-1.0
+}
+
+// Atomic volume setting
+Future<void> setAllVolumes({
+  required int countdown,
+  required int start,
+  required int halfway,
+  required int finish,
+}) async {
+  await _ensureInitialized();
+  await _lastTwoPlayer?.setVolume(_convertVolume(countdown));
+  await _startPlayer?.setVolume(_convertVolume(start));
+  await _halfPlayer?.setVolume(_convertVolume(halfway));
+  await _longGongPlayer?.setVolume(_convertVolume(finish));
+}
+```
+
+**Settings Change Propagation**:
+```dart
+// SettingsScreen returns true when settings changed
+return WillPopScope(
+  onWillPop: () async {
+    Navigator.pop(context, _settingsChanged);
+    return false;
+  },
+  child: Scaffold(...),
+);
+
+// HomeScreen reloads user
+if (result == true) {
+  _loadCurrentUser();
+}
+```
+
+**Wake Lock Reliability**:
+```dart
+// Periodic renewal every 30 seconds
+_wakelockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+  WakelockPlus.enable();
+});
+```
+
+### Issues Resolved
+1. Double scroll causing confusing UX on home screen
+2. Both sides exercises not working (duration and execution)
+3. Start practice button not showing for program owners
+4. Audio settings showing as "Off" despite DB values (missing SELECT columns)
+5. Save button text not visible (missing foreground color)
+6. Audio settings requiring app reload to take effect
+7. Back arrow not visible in audio settings (missing foreground color)
+8. Wake lock expiring on some devices during long practice
+9. Session counts only showing for programs with planned repetitions
+
+### Testing Completed
+1. ✅ Home screen scrolling and FAB padding
+2. ✅ Both sides exercises (2x duration, runs twice)
+3. ✅ Audio settings UI (all 5 levels)
+4. ✅ Audio settings persistence and immediate effect
+5. ✅ Volume controls working during practice
+6. ✅ Wake lock staying active during long sessions
+7. ✅ Session count showing for all programs
+
+### Database Schema Updates
+```sql
+-- Migration 000006
+ALTER TABLE users
+ADD COLUMN countdown_volume INTEGER NOT NULL DEFAULT 75
+    CHECK (countdown_volume IN (0, 25, 50, 75, 100)),
+ADD COLUMN start_volume INTEGER NOT NULL DEFAULT 75
+    CHECK (start_volume IN (0, 25, 50, 75, 100)),
+ADD COLUMN halfway_volume INTEGER NOT NULL DEFAULT 25
+    CHECK (halfway_volume IN (0, 25, 50, 75, 100)),
+ADD COLUMN finish_volume INTEGER NOT NULL DEFAULT 100
+    CHECK (finish_volume IN (0, 25, 50, 75, 100));
+```
 
 ---
 

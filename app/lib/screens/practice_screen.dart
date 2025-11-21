@@ -3,14 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../models/program.dart';
 import '../models/exercise.dart';
+import '../models/user.dart';
 import '../services/audio_service.dart';
 import '../services/notification_service.dart';
 import 'session_complete_screen.dart';
 
 class PracticeScreen extends StatefulWidget {
   final Program program;
+  final User user;
 
-  const PracticeScreen({Key? key, required this.program}) : super(key: key);
+  const PracticeScreen({Key? key, required this.program, required this.user}) : super(key: key);
 
   @override
   State<PracticeScreen> createState() => _PracticeScreenState();
@@ -23,6 +25,7 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
   int currentExerciseIndex = 0;
   int remainingSeconds = 0;
   Timer? _timer;
+  Timer? _wakelockTimer;
   bool isPaused = false;
   bool isResting = false;
   bool isWuWeiMode = false;
@@ -32,6 +35,7 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
   int _initialExerciseDuration = 0;
   bool _halfTimeSoundPlayed = false;
   bool _isInBackground = false;
+  int? _currentSide; // null, 1, or 2 - tracks which side is being practiced
 
   @override
   void initState() {
@@ -39,11 +43,13 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
     // Add lifecycle observer
     WidgetsBinding.instance.addObserver(this);
 
-    // Initialize audio service
-    _audioService.initialize();
-
     // Enable wake lock to keep screen on
     WakelockPlus.enable();
+
+    // Start periodic wake lock renewal every 30 seconds to ensure reliability
+    _wakelockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      WakelockPlus.enable();
+    });
 
     // Check if program has exercises
     if (widget.program.exercises.isEmpty) {
@@ -58,7 +64,21 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
       });
       return;
     }
-    _startCountdown();
+
+    // Start countdown after audio is initialized
+    _initializeAudio().then((_) {
+      _startCountdown();
+    });
+  }
+
+  Future<void> _initializeAudio() async {
+    await _audioService.initialize();
+    await _audioService.setAllVolumes(
+      countdown: widget.user.countdownVolume,
+      start: widget.user.startVolume,
+      halfway: widget.user.halfwayVolume,
+      finish: widget.user.finishVolume,
+    );
   }
 
   @override
@@ -67,6 +87,7 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
     WidgetsBinding.instance.removeObserver(this);
 
     _timer?.cancel();
+    _wakelockTimer?.cancel();
 
     // Disable wake lock
     WakelockPlus.disable();
@@ -117,8 +138,12 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
         totalExercises: total,
       );
     } else {
+      final exerciseName = exercise.hasSides && _currentSide != null
+          ? '${exercise.name} - ${_currentSide == 1 ? 'First' : 'Second'} Side'
+          : exercise.name;
+
       _notificationService.showTimerNotification(
-        exerciseName: exercise.name,
+        exerciseName: exerciseName,
         remainingSeconds: remainingSeconds,
         currentExercise: current,
         totalExercises: total,
@@ -160,6 +185,11 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
   void _startExercise() {
     final exercise = widget.program.exercises[currentExerciseIndex];
 
+    // Initialize side tracking for exercises with sides
+    if (exercise.hasSides && _currentSide == null) {
+      _currentSide = 1;
+    }
+
     // For repetition-only exercises, don't start a timer
     if (exercise.type == ExerciseType.repetition) {
       setState(() {
@@ -174,7 +204,15 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
       return;
     }
 
-    final duration = exercise.durationSeconds ?? 60; // Default 60s for mock
+    // Determine duration based on current side
+    int duration;
+    if (exercise.hasSides && _currentSide == 2) {
+      // Second side: use sideDurationSeconds if available, else fall back to durationSeconds
+      duration = exercise.sideDurationSeconds ?? exercise.durationSeconds ?? 60;
+    } else {
+      // First side or single-sided exercise
+      duration = exercise.durationSeconds ?? 60;
+    }
 
     setState(() {
       phase = PracticePhase.exercise;
@@ -184,8 +222,8 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
       _halfTimeSoundPlayed = false;
     });
 
-    // If not first exercise, play start sound
-    if (_hasShownInitialCountdown && currentExerciseIndex > 0) {
+    // If not first exercise or transitioning to side 2, play start sound
+    if (_hasShownInitialCountdown && (currentExerciseIndex > 0 || _currentSide == 2)) {
       _audioService.playStart();
     }
 
@@ -211,12 +249,34 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
             _updateNotification();
           } else {
             _timer?.cancel();
-            // Don't play sound here - just move to rest or next exercise
-            _startRest();
+            // Don't play sound here - handle exercise completion
+            _handleExerciseComplete();
           }
         });
       }
     });
+  }
+
+  void _handleExerciseComplete() {
+    final exercise = widget.program.exercises[currentExerciseIndex];
+
+    // Check if we need to transition to the second side
+    if (exercise.hasSides && _currentSide == 1) {
+      // Transition to second side
+      setState(() {
+        _currentSide = 2;
+      });
+      _startExercise();
+      return;
+    }
+
+    // Both sides complete (or single-sided exercise), reset side tracking
+    setState(() {
+      _currentSide = null;
+    });
+
+    // Start rest period or move to next exercise
+    _startRest();
   }
 
   void _startRest() {
@@ -271,7 +331,22 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
       return;
     }
 
-    // Otherwise skip to next exercise
+    final exercise = widget.program.exercises[currentExerciseIndex];
+
+    // If on first side of a two-sided exercise, skip to second side
+    if (exercise.hasSides && _currentSide == 1) {
+      setState(() {
+        _currentSide = 2;
+      });
+      _audioService.playStart();
+      _startExercise();
+      return;
+    }
+
+    // Otherwise skip to next exercise and reset side tracking
+    setState(() {
+      _currentSide = null;
+    });
     _audioService.playStart();
     _nextExercise();
   }
@@ -493,6 +568,25 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
                 color: burgundy,
               ),
             ),
+            if (exercise.hasSides && _currentSide != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                decoration: BoxDecoration(
+                  color: burgundy.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _currentSide == 1 ? 'First Side' : 'Second Side',
+                  style: TextStyle(
+                    color: burgundy,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             if (exercise.repetitions != null)
               Text(
@@ -506,7 +600,7 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
             ElevatedButton.icon(
               onPressed: () {
                 _timer?.cancel();
-                _startRest();
+                _handleExerciseComplete();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: burgundy,
@@ -554,6 +648,25 @@ class _PracticeScreenState extends State<PracticeScreen> with WidgetsBindingObse
               color: burgundy,
             ),
           ),
+          if (exercise.hasSides && _currentSide != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              decoration: BoxDecoration(
+                color: burgundy.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _currentSide == 1 ? 'First Side' : 'Second Side',
+                style: TextStyle(
+                  color: burgundy,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 32),
           // Show meditation icon in Wu Wei mode, otherwise show time
           if (isWuWeiMode)

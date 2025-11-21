@@ -2,8 +2,8 @@ apiVersion: v2
 name: xuangong-backend
 description: A Helm chart for Xuan Gong Backend API - Martial Arts Training Application
 type: application
-version: 0.1.0
-appVersion: "1.0.0"
+version: 2025.1.0-beta1
+appVersion: "v2025.1.0-beta1"
 keywords:
   - xuangong
   - martial-arts

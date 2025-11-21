@@ -37,8 +37,12 @@ type RefreshTokenRequest struct {
 
 // Profile management requests (user self-service)
 type UpdateProfileRequest struct {
-	Email    *string `json:"email" validate:"omitempty,email"`
-	FullName *string `json:"full_name" validate:"omitempty,min=2"`
+	Email           *string `json:"email" validate:"omitempty,email"`
+	FullName        *string `json:"full_name" validate:"omitempty,min=2"`
+	CountdownVolume *int    `json:"countdown_volume" validate:"omitempty,oneof=0 25 50 75 100"`
+	StartVolume     *int    `json:"start_volume" validate:"omitempty,oneof=0 25 50 75 100"`
+	HalfwayVolume   *int    `json:"halfway_volume" validate:"omitempty,oneof=0 25 50 75 100"`
+	FinishVolume    *int    `json:"finish_volume" validate:"omitempty,oneof=0 25 50 75 100"`
 }
 
 type ChangePasswordRequest struct {

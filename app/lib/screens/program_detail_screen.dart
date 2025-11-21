@@ -69,6 +69,12 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
     return widget.user?.role == 'admin';
   }
 
+  bool _isCurrentUserProgram() {
+    if (widget.user == null) return false;
+    if (widget.program.ownedBy == null) return false;
+    return widget.program.ownedBy == widget.user!.id;
+  }
+
   void _onTabChanged() {
     if (_tabController.index == 1) { // Sessions tab
       _loadSessions();
@@ -261,8 +267,8 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
                 : _buildOverviewTab(),
           ),
 
-          // Fixed bottom action button - only show for students on their programs
-          if (!widget.program.isTemplate && !_isAdmin())
+          // Fixed bottom action button - show for current user's programs (admin or student)
+          if (!widget.program.isTemplate && _isCurrentUserProgram())
             Padding(
               padding: const EdgeInsets.all(20),
               child: SafeArea(
@@ -273,7 +279,7 @@ class _ProgramDetailScreenState extends State<ProgramDetailScreen>
                     final result = await Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (context) =>
-                            PracticeScreen(program: widget.program),
+                            PracticeScreen(program: widget.program, user: widget.user!),
                       ),
                     );
 

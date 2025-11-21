@@ -107,8 +107,9 @@ class Program {
       if (exercise.durationSeconds != null) {
         totalSeconds += exercise.durationSeconds!;
       }
-      if (exercise.hasSides && exercise.sideDurationSeconds != null) {
-        totalSeconds += exercise.sideDurationSeconds!;
+      if (exercise.hasSides) {
+        // Add second side duration (defaults to first side if not specified)
+        totalSeconds += exercise.sideDurationSeconds ?? exercise.durationSeconds ?? 0;
       }
       totalSeconds += exercise.restAfterSeconds;
     }

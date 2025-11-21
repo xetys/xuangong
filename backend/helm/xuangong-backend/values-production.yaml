@@ -1,11 +1,11 @@
 # Production values for xuangong-backend
 # Override default values for production deployment
 
-replicaCount: 3
+replicaCount: 2
 
 image:
   repository: ghcr.io/xetys/xuangong/api
-  tag: "v2025.1.0-alpha4"
+  tag: "v2025.1.0-beta1"
   pullPolicy: IfNotPresent
 
 # Resource limits for production workload

@@ -106,11 +106,22 @@ class AuthService {
   }
 
   // Update user profile
-  Future<void> updateProfile({String? email, String? fullName}) async {
+  Future<void> updateProfile({
+    String? email,
+    String? fullName,
+    int? countdownVolume,
+    int? startVolume,
+    int? halfwayVolume,
+    int? finishVolume,
+  }) async {
     try {
       final Map<String, dynamic> body = {};
       if (email != null) body['email'] = email;
       if (fullName != null) body['full_name'] = fullName;
+      if (countdownVolume != null) body['countdown_volume'] = countdownVolume;
+      if (startVolume != null) body['start_volume'] = startVolume;
+      if (halfwayVolume != null) body['halfway_volume'] = halfwayVolume;
+      if (finishVolume != null) body['finish_volume'] = finishVolume;
 
       await _apiClient.put(ApiConfig.profileUrl, body);
 

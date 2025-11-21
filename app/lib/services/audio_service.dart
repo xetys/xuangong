@@ -58,6 +58,45 @@ class AudioService {
     await _initialize();
   }
 
+  // Convert volume from 0/25/50/75/100 to 0.0-1.0 range
+  double _convertVolume(int volume) {
+    return volume / 100.0;
+  }
+
+  Future<void> setCountdownVolume(int volume) async {
+    await _ensureInitialized();
+    await _lastTwoPlayer?.setVolume(_convertVolume(volume));
+  }
+
+  Future<void> setStartVolume(int volume) async {
+    await _ensureInitialized();
+    await _startPlayer?.setVolume(_convertVolume(volume));
+  }
+
+  Future<void> setHalfwayVolume(int volume) async {
+    await _ensureInitialized();
+    await _halfPlayer?.setVolume(_convertVolume(volume));
+  }
+
+  Future<void> setFinishVolume(int volume) async {
+    await _ensureInitialized();
+    await _longGongPlayer?.setVolume(_convertVolume(volume));
+  }
+
+  // Set all volumes at once
+  Future<void> setAllVolumes({
+    required int countdown,
+    required int start,
+    required int halfway,
+    required int finish,
+  }) async {
+    await _ensureInitialized();
+    await _lastTwoPlayer?.setVolume(_convertVolume(countdown));
+    await _startPlayer?.setVolume(_convertVolume(start));
+    await _halfPlayer?.setVolume(_convertVolume(halfway));
+    await _longGongPlayer?.setVolume(_convertVolume(finish));
+  }
+
   Future<void> playStart() async {
     await _ensureInitialized();
     try {

@@ -28,7 +28,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   final ProgramService _programService = ProgramService();
   final SubmissionService _submissionService = SubmissionService();
+  final AuthService _authService = AuthService();
   late TabController _tabController;
+  late User _currentUser;
   List<Program>? _myPrograms;
   List<Program>? _templates;
   String? _myProgramsError;
@@ -42,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
+    _currentUser = widget.user;
     _tabController = TabController(length: 2, vsync: this);
     _loadData();
 
@@ -50,6 +53,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       const Duration(seconds: 30),
       (_) => _loadUnreadCounts(),
     );
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await _authService.getCurrentUser();
+      setState(() {
+        _currentUser = user;
+      });
+    } catch (e) {
+      // Silently fail - user object not critical for display
+      print('Failed to reload user: $e');
+    }
   }
 
   @override
@@ -141,72 +156,41 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       ),
       drawer: _buildDrawer(context, burgundy),
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Welcome message
-                Text(
-                  'Welcome back,',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.user.fullName,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w600,
-                    color: burgundy,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  widget.user.isStudent ? 'Student' : 'Instructor',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade500,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 32),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Practice history widget
+              PracticeHistoryWidget(key: _practiceHistoryKey),
+              const SizedBox(height: 32),
 
-                // Practice history widget
-                PracticeHistoryWidget(key: _practiceHistoryKey),
-                const SizedBox(height: 32),
+              // Tab bar for My Programs and Templates
+              TabBar(
+                controller: _tabController,
+                labelColor: burgundy,
+                unselectedLabelColor: Colors.grey.shade600,
+                indicatorColor: burgundy,
+                tabs: const [
+                  Tab(text: 'My Programs'),
+                  Tab(text: 'Templates'),
+                ],
+              ),
+              const SizedBox(height: 16),
 
-                // Tab bar for My Programs and Templates
-                TabBar(
+              // Tab content - expanded to fill remaining space
+              Expanded(
+                child: TabBarView(
                   controller: _tabController,
-                  labelColor: burgundy,
-                  unselectedLabelColor: Colors.grey.shade600,
-                  indicatorColor: burgundy,
-                  tabs: const [
-                    Tab(text: 'My Programs'),
-                    Tab(text: 'Templates'),
+                  children: [
+                    // My Programs tab
+                    _buildMyProgramsTab(burgundy),
+                    // Templates tab
+                    _buildTemplatesTab(burgundy),
                   ],
                 ),
-                const SizedBox(height: 16),
-
-                // Tab content
-                SizedBox(
-                  height: 400, // Fixed height for tab content
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      // My Programs tab
-                      _buildMyProgramsTab(burgundy),
-                      // Templates tab
-                      _buildTemplatesTab(burgundy),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -214,7 +198,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         onPressed: () async {
           final result = await Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => ProgramEditScreen(user: widget.user),
+              builder: (context) => ProgramEditScreen(user: _currentUser),
             ),
           );
 
@@ -299,6 +283,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     return ListView.builder(
       itemCount: _myPrograms!.length,
+      padding: const EdgeInsets.only(bottom: 80),
       itemBuilder: (context, index) {
         final program = _myPrograms![index];
         return Padding(
@@ -351,6 +336,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     return ListView.builder(
       itemCount: _templates!.length,
+      padding: const EdgeInsets.only(bottom: 80),
       itemBuilder: (context, index) {
         final template = _templates![index];
         return Padding(
@@ -388,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               MaterialPageRoute(
                 builder: (context) => ProgramDetailScreen(
                   program: program,
-                  user: widget.user,
+                  user: _currentUser,
                 ),
               ),
             );
@@ -484,8 +470,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         color: burgundy.withValues(alpha: 0.7),
                       ),
                     ),
-                    // Show repetitions progress for non-template programs
-                    if (!isTemplate && program.repetitionsPlanned != null) ...[
+                    // Show session count for non-template programs
+                    if (!isTemplate) ...[
                       const SizedBox(width: 16),
                       Icon(
                         Icons.repeat,
@@ -494,7 +480,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '${program.repetitionsCompleted ?? 0}/${program.repetitionsPlanned}',
+                        program.repetitionsPlanned != null
+                            ? '${program.repetitionsCompleted ?? 0}/${program.repetitionsPlanned}'
+                            : '${program.repetitionsCompleted ?? 0} sessions',
                         style: TextStyle(
                           fontSize: 14,
                           color: burgundy.withValues(alpha: 0.7),
@@ -532,7 +520,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  widget.user.fullName,
+                  _currentUser.fullName,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -541,7 +529,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  widget.user.email,
+                  _currentUser.email,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 14,
@@ -565,13 +553,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ListTile(
             leading: const Icon(Icons.settings_outlined),
             title: const Text('Settings'),
-            onTap: () {
+            onTap: () async {
               Navigator.pop(context); // Close drawer
-              Navigator.of(context).push(
+              final result = await Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => const SettingsScreen(),
                 ),
               );
+              if (result == true) {
+                // Settings were changed, reload user
+                _loadCurrentUser();
+              }
             },
           ),
           const Divider(),
@@ -583,7 +575,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               _handleLogout(context);
             },
           ),
-          if (widget.user.isAdmin) ...[
+          if (_currentUser.isAdmin) ...[
             const Divider(),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),

@@ -194,7 +194,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.UpdateProfile(c.Request.Context(), userID, req.Email, req.FullName); err != nil {
+	if err := h.authService.UpdateProfile(c.Request.Context(), userID, req.Email, req.FullName, req.CountdownVolume, req.StartVolume, req.HalfwayVolume, req.FinishVolume); err != nil {
 		respondWithAppError(c, err)
 		return
 	}

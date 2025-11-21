@@ -37,37 +37,37 @@
     },
     {
       "content": "Write all role update tests - RED phase (repository, service, handler tests)",
-      "status": "pending",
+      "status": "completed",
       "activeForm": "Writing role update tests"
     },
     {
       "content": "Implement role update logic - GREEN phase (CountAdmins, business rules, handler)",
-      "status": "pending",
+      "status": "completed",
       "activeForm": "Implementing role update logic"
     },
     {
       "content": "Refactor role management code - REFACTOR phase (validation functions, error messages)",
-      "status": "pending",
+      "status": "completed",
       "activeForm": "Refactoring role management code"
     },
     {
       "content": "Update Flutter API client services (deleteProgram, getUserSessions, updateUserRole)",
-      "status": "pending",
+      "status": "completed",
       "activeForm": "Updating Flutter API client services"
     },
     {
       "content": "Restore program overview tab for admins (hide start button, add delete/edit, show repetitions)",
-      "status": "pending",
+      "status": "completed",
       "activeForm": "Restoring program overview tab for admins"
     },
     {
       "content": "Show student sessions in program detail screen (pass student ID, call API, add banner)",
-      "status": "pending",
+      "status": "completed",
       "activeForm": "Showing student sessions in program detail"
     },
     {
       "content": "Add admin role control to student edit screen (remove condition, wire API, show feedback)",
-      "status": "pending",
+      "status": "completed",
       "activeForm": "Adding admin role control to student edit"
     },
     {
@@ -94,6 +94,31 @@
       "content": "FUTURE: Add audit log for role changes (track who promoted/demoted whom)",
       "status": "pending",
       "activeForm": "Adding audit log for role changes"
+    },
+    {
+      "content": "Fix home screen double scroll bug (remove nested scroll, add FAB padding, move welcome to drawer)",
+      "status": "pending",
+      "activeForm": "Fixing home screen double scroll bug"
+    },
+    {
+      "content": "Fix both sides functionality (2x duration calculation, run twice in practice)",
+      "status": "pending",
+      "activeForm": "Fixing both sides functionality"
+    },
+    {
+      "content": "Add sound volume settings (per-sound control: off/25%/50%/75%/100% with defaults)",
+      "status": "pending",
+      "activeForm": "Adding sound volume settings"
+    },
+    {
+      "content": "Fix wake lock reliability (renew every 30s to prevent screen timeout)",
+      "status": "pending",
+      "activeForm": "Fixing wake lock reliability"
+    },
+    {
+      "content": "Show session count for all programs (not just those with repetition tracking)",
+      "status": "pending",
+      "activeForm": "Showing session count for all programs"
     }
   ]
 }

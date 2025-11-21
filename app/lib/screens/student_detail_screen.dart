@@ -428,23 +428,23 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                         color: burgundy.withValues(alpha: 0.7),
                       ),
                     ),
-                    if (program.repetitionsPlanned != null) ...[
-                      const SizedBox(width: 16),
-                      Icon(
-                        Icons.repeat,
-                        size: 16,
+                    const SizedBox(width: 16),
+                    Icon(
+                      Icons.repeat,
+                      size: 16,
+                      color: burgundy.withValues(alpha: 0.7),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      program.repetitionsPlanned != null
+                          ? '${program.repetitionsCompleted ?? 0}/${program.repetitionsPlanned}'
+                          : '${program.repetitionsCompleted ?? 0} sessions',
+                      style: TextStyle(
+                        fontSize: 14,
                         color: burgundy.withValues(alpha: 0.7),
+                        fontWeight: FontWeight.w600,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${program.repetitionsCompleted ?? 0}/${program.repetitionsPlanned}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: burgundy.withValues(alpha: 0.7),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                    ),
                   ],
                 ),
               ],

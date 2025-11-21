@@ -147,7 +147,7 @@ func (s *AuthService) generateTokens(user *models.User) (*auth.TokenPair, error)
 	return tokens, nil
 }
 
-func (s *AuthService) UpdateProfile(ctx context.Context, userID uuid.UUID, email, fullName *string) error {
+func (s *AuthService) UpdateProfile(ctx context.Context, userID uuid.UUID, email, fullName *string, countdownVolume, startVolume, halfwayVolume, finishVolume *int) error {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return appErrors.NewInternalError("Failed to fetch user").WithError(err)
@@ -173,6 +173,18 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID uuid.UUID, email
 	}
 	if fullName != nil {
 		user.FullName = *fullName
+	}
+	if countdownVolume != nil {
+		user.CountdownVolume = *countdownVolume
+	}
+	if startVolume != nil {
+		user.StartVolume = *startVolume
+	}
+	if halfwayVolume != nil {
+		user.HalfwayVolume = *halfwayVolume
+	}
+	if finishVolume != nil {
+		user.FinishVolume = *finishVolume
 	}
 
 	if err := s.userRepo.Update(ctx, user); err != nil {

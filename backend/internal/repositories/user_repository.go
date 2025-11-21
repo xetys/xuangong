@@ -36,7 +36,9 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	var user models.User
 	query := `
-		SELECT id, email, password_hash, full_name, role, is_active, created_at, updated_at
+		SELECT id, email, password_hash, full_name, role, is_active,
+		       countdown_volume, start_volume, halfway_volume, finish_volume,
+		       created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -47,6 +49,10 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		&user.FullName,
 		&user.Role,
 		&user.IsActive,
+		&user.CountdownVolume,
+		&user.StartVolume,
+		&user.HalfwayVolume,
+		&user.FinishVolume,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -62,7 +68,9 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
 	query := `
-		SELECT id, email, password_hash, full_name, role, is_active, created_at, updated_at
+		SELECT id, email, password_hash, full_name, role, is_active,
+		       countdown_volume, start_volume, halfway_volume, finish_volume,
+		       created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -73,6 +81,10 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&user.FullName,
 		&user.Role,
 		&user.IsActive,
+		&user.CountdownVolume,
+		&user.StartVolume,
+		&user.HalfwayVolume,
+		&user.FinishVolume,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -87,7 +99,9 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 
 func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]models.User, error) {
 	query := `
-		SELECT id, email, password_hash, full_name, role, is_active, created_at, updated_at
+		SELECT id, email, password_hash, full_name, role, is_active,
+		       countdown_volume, start_volume, halfway_volume, finish_volume,
+		       created_at, updated_at
 		FROM users
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2
@@ -108,6 +122,10 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]models.
 			&user.FullName,
 			&user.Role,
 			&user.IsActive,
+			&user.CountdownVolume,
+			&user.StartVolume,
+			&user.HalfwayVolume,
+			&user.FinishVolume,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 		)
@@ -123,8 +141,9 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]models.
 func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 	query := `
 		UPDATE users
-		SET email = $1, full_name = $2, role = $3, is_active = $4
-		WHERE id = $5
+		SET email = $1, full_name = $2, role = $3, is_active = $4,
+		    countdown_volume = $5, start_volume = $6, halfway_volume = $7, finish_volume = $8
+		WHERE id = $9
 		RETURNING updated_at
 	`
 	return r.db.QueryRow(ctx, query,
@@ -132,6 +151,10 @@ func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
 		user.FullName,
 		user.Role,
 		user.IsActive,
+		user.CountdownVolume,
+		user.StartVolume,
+		user.HalfwayVolume,
+		user.FinishVolume,
 		user.ID,
 	).Scan(&user.UpdatedAt)
 }

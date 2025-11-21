@@ -653,6 +653,7 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
   late TextEditingController _descriptionController;
   late TextEditingController _youtubeUrlController;
   late TextEditingController _durationController;
+  late TextEditingController _sideDurationController;
   late TextEditingController _repetitionsController;
   late TextEditingController _restController;
   late ExerciseType _selectedType;
@@ -666,6 +667,10 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
     _youtubeUrlController = TextEditingController(text: widget.exercise?.youtubeUrl ?? '');
     _durationController = TextEditingController(
       text: widget.exercise?.durationSeconds?.toString() ?? '60',
+    );
+    _sideDurationController = TextEditingController(
+      text: widget.exercise?.sideDurationSeconds?.toString() ??
+            widget.exercise?.durationSeconds?.toString() ?? '60',
     );
     _repetitionsController = TextEditingController(
       text: widget.exercise?.repetitions?.toString() ?? '10',
@@ -683,6 +688,7 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
     _descriptionController.dispose();
     _youtubeUrlController.dispose();
     _durationController.dispose();
+    _sideDurationController.dispose();
     _repetitionsController.dispose();
     _restController.dispose();
     super.dispose();
@@ -711,6 +717,9 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
             ? int.tryParse(_repetitionsController.text)
             : null,
         hasSides: _hasSides,
+        sideDurationSeconds: _hasSides && _selectedType != ExerciseType.repetition
+            ? int.tryParse(_sideDurationController.text)
+            : null,
         restAfterSeconds: int.tryParse(_restController.text) ?? 0,
         metadata: metadata,
       );
@@ -848,9 +857,9 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
                       padding: const EdgeInsets.only(bottom: 16),
                       child: TextFormField(
                         controller: _durationController,
-                        decoration: const InputDecoration(
-                          labelText: 'Duration (seconds)',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: _hasSides ? 'Duration - First Side (seconds)' : 'Duration (seconds)',
+                          border: const OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.number,
                         validator: (value) {
@@ -859,6 +868,32 @@ class _ExerciseEditorDialogState extends State<_ExerciseEditorDialog> {
                           }
                           if (int.tryParse(value) == null) {
                             return 'Please enter a valid number';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+
+                  if (_hasSides && _selectedType != ExerciseType.repetition)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: TextFormField(
+                        controller: _sideDurationController,
+                        decoration: const InputDecoration(
+                          labelText: 'Duration - Second Side (seconds)',
+                          border: OutlineInputBorder(),
+                          helperText: 'Duration for the second side',
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter duration for second side';
+                          }
+                          if (int.tryParse(value) == null) {
+                            return 'Please enter a valid number';
+                          }
+                          if (int.parse(value) <= 0) {
+                            return 'Duration must be greater than 0';
                           }
                           return null;
                         },
